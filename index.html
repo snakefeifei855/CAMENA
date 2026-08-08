@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:cap-mw-v1 -->
+  <!-- build:cap-gw-v1 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CAMENA · Jan–Jul 2026 Dashboard</title>
@@ -323,7 +323,7 @@
     <section class="grid-kpi" id="kpi-row"></section>
     <section class="grid-charts" id="chart-row"></section>
 
-    <h2 class="section-label">By installed capacity (MW)</h2>
+    <h2 class="section-label">By installed capacity (GW)</h2>
     <section class="grid-kpi" id="kpi-row-cap"></section>
     <section class="grid-charts" id="chart-row-cap"></section>
 
@@ -332,7 +332,7 @@
       Newly received: among Analysis, First Assigned also in Jan–Jul 2026.
       Old revision: among Analysis, First Assigned before Jan 2026 (or outside this window).
       Contracts signed / Award notice: Internal Process tags.
-      Capacity charts sum the Capacity field (MW); projects with blank Capacity contribute 0 MW.
+      Capacity charts sum the Capacity field converted to GW (÷1000); projects with blank Capacity contribute 0 GW.
     </p>
   </div>
 
@@ -353,7 +353,7 @@
   </div>
 
   <script>
-    const DATA = {"analysis":{"total":191,"slices":[{"name":"TURKIYE","value":102,"pct":53.4},{"name":"PAKISTAN","value":25,"pct":13.09},{"name":"UZBEKISTAN","value":11,"pct":5.76},{"name":"GEORGIA","value":9,"pct":4.71},{"name":"MOROCCO","value":7,"pct":3.66},{"name":"SAUDI","value":7,"pct":3.66},{"name":"UKRAINE","value":7,"pct":3.66},{"name":"EGYPT","value":6,"pct":3.14},{"name":"KAZAKHISTAN","value":6,"pct":3.14},{"name":"SRI LANKA","value":3,"pct":1.57},{"name":"Azerbajian","value":2,"pct":1.05},{"name":"Kyrgyzstan","value":2,"pct":1.05},{"name":"Mongolia","value":1,"pct":0.52},{"name":"OMAN","value":1,"pct":0.52},{"name":"TAJIKISTAN","value":1,"pct":0.52},{"name":"TUNISIA","value":1,"pct":0.52}]},"new2026":{"total":95,"slices":[{"name":"TURKIYE","value":57,"pct":60.0},{"name":"PAKISTAN","value":14,"pct":14.74},{"name":"UKRAINE","value":6,"pct":6.32},{"name":"EGYPT","value":4,"pct":4.21},{"name":"UZBEKISTAN","value":4,"pct":4.21},{"name":"Kyrgyzstan","value":2,"pct":2.11},{"name":"MOROCCO","value":2,"pct":2.11},{"name":"SAUDI","value":2,"pct":2.11},{"name":"Azerbajian","value":1,"pct":1.05},{"name":"GEORGIA","value":1,"pct":1.05},{"name":"KAZAKHISTAN","value":1,"pct":1.05},{"name":"TAJIKISTAN","value":1,"pct":1.05}]},"oldRevision":{"total":96,"slices":[{"name":"TURKIYE","value":45,"pct":46.88},{"name":"PAKISTAN","value":11,"pct":11.46},{"name":"GEORGIA","value":8,"pct":8.33},{"name":"UZBEKISTAN","value":7,"pct":7.29},{"name":"KAZAKHISTAN","value":5,"pct":5.21},{"name":"MOROCCO","value":5,"pct":5.21},{"name":"SAUDI","value":5,"pct":5.21},{"name":"SRI LANKA","value":3,"pct":3.12},{"name":"EGYPT","value":2,"pct":2.08},{"name":"Azerbajian","value":1,"pct":1.04},{"name":"Mongolia","value":1,"pct":1.04},{"name":"OMAN","value":1,"pct":1.04},{"name":"TUNISIA","value":1,"pct":1.04},{"name":"UKRAINE","value":1,"pct":1.04}]},"contracts":{"total":21,"slices":[{"name":"PAKISTAN","value":15,"pct":71.43},{"name":"TURKIYE","value":5,"pct":23.81},{"name":"GEORGIA","value":1,"pct":4.76}]},"award":{"total":12,"slices":[{"name":"TURKIYE","value":7,"pct":58.33},{"name":"PAKISTAN","value":2,"pct":16.67},{"name":"GEORGIA","value":1,"pct":8.33},{"name":"KAZAKHISTAN","value":1,"pct":8.33},{"name":"UZBEKISTAN","value":1,"pct":8.33}]},"analysisCap":{"total":37115.4,"slices":[{"name":"SAUDI","value":8500,"pct":22.9},{"name":"UZBEKISTAN","value":7350,"pct":19.8},{"name":"TURKIYE","value":5955,"pct":16.04},{"name":"EGYPT","value":5200,"pct":14.01},{"name":"MOROCCO","value":4460,"pct":12.02},{"name":"KAZAKHISTAN","value":2570,"pct":6.92},{"name":"GEORGIA","value":686,"pct":1.85},{"name":"UKRAINE","value":432.1,"pct":1.16},{"name":"Kyrgyzstan","value":400,"pct":1.08},{"name":"OMAN","value":400,"pct":1.08},{"name":"PAKISTAN","value":367.3,"pct":0.99},{"name":"Azerbajian","value":240,"pct":0.65},{"name":"TAJIKISTAN","value":200,"pct":0.54},{"name":"SRI LANKA","value":180,"pct":0.48},{"name":"Mongolia","value":100,"pct":0.27},{"name":"TUNISIA","value":75,"pct":0.2}]},"new2026Cap":{"total":14636.7,"slices":[{"name":"TURKIYE","value":3817.3,"pct":26.08},{"name":"EGYPT","value":3400,"pct":23.23},{"name":"UZBEKISTAN","value":2800,"pct":19.13},{"name":"SAUDI","value":2200,"pct":15.03},{"name":"MOROCCO","value":1100,"pct":7.52},{"name":"UKRAINE","value":402.1,"pct":2.75},{"name":"Kyrgyzstan","value":400,"pct":2.73},{"name":"TAJIKISTAN","value":200,"pct":1.37},{"name":"KAZAKHISTAN","value":170,"pct":1.16},{"name":"PAKISTAN","value":92.3,"pct":0.63},{"name":"GEORGIA","value":55,"pct":0.38}]},"oldRevisionCap":{"total":22478.7,"slices":[{"name":"SAUDI","value":6300,"pct":28.03},{"name":"UZBEKISTAN","value":4550,"pct":20.24},{"name":"MOROCCO","value":3360,"pct":14.95},{"name":"KAZAKHISTAN","value":2400,"pct":10.68},{"name":"TURKIYE","value":2137.7,"pct":9.51},{"name":"EGYPT","value":1800,"pct":8.01},{"name":"GEORGIA","value":631,"pct":2.81},{"name":"OMAN","value":400,"pct":1.78},{"name":"PAKISTAN","value":275,"pct":1.22},{"name":"Azerbajian","value":240,"pct":1.07},{"name":"SRI LANKA","value":180,"pct":0.8},{"name":"Mongolia","value":100,"pct":0.44},{"name":"TUNISIA","value":75,"pct":0.33},{"name":"UKRAINE","value":30,"pct":0.13}]},"contractsCap":{"total":361.9,"slices":[{"name":"TURKIYE","value":199.4,"pct":55.1},{"name":"PAKISTAN","value":112.5,"pct":31.09},{"name":"GEORGIA","value":50,"pct":13.82}]},"awardCap":{"total":2056.5,"slices":[{"name":"UZBEKISTAN","value":1500,"pct":72.94},{"name":"TURKIYE","value":291.5,"pct":14.17},{"name":"KAZAKHISTAN","value":150,"pct":7.29},{"name":"GEORGIA","value":110,"pct":5.35},{"name":"PAKISTAN","value":5,"pct":0.24}]}};
+    const DATA = {"analysis":{"total":191,"slices":[{"name":"TURKIYE","value":102,"pct":53.4},{"name":"PAKISTAN","value":25,"pct":13.09},{"name":"UZBEKISTAN","value":11,"pct":5.76},{"name":"GEORGIA","value":9,"pct":4.71},{"name":"MOROCCO","value":7,"pct":3.66},{"name":"SAUDI","value":7,"pct":3.66},{"name":"UKRAINE","value":7,"pct":3.66},{"name":"EGYPT","value":6,"pct":3.14},{"name":"KAZAKHISTAN","value":6,"pct":3.14},{"name":"SRI LANKA","value":3,"pct":1.57},{"name":"Azerbajian","value":2,"pct":1.05},{"name":"Kyrgyzstan","value":2,"pct":1.05},{"name":"Mongolia","value":1,"pct":0.52},{"name":"OMAN","value":1,"pct":0.52},{"name":"TAJIKISTAN","value":1,"pct":0.52},{"name":"TUNISIA","value":1,"pct":0.52}]},"new2026":{"total":95,"slices":[{"name":"TURKIYE","value":57,"pct":60.0},{"name":"PAKISTAN","value":14,"pct":14.74},{"name":"UKRAINE","value":6,"pct":6.32},{"name":"EGYPT","value":4,"pct":4.21},{"name":"UZBEKISTAN","value":4,"pct":4.21},{"name":"Kyrgyzstan","value":2,"pct":2.11},{"name":"MOROCCO","value":2,"pct":2.11},{"name":"SAUDI","value":2,"pct":2.11},{"name":"Azerbajian","value":1,"pct":1.05},{"name":"GEORGIA","value":1,"pct":1.05},{"name":"KAZAKHISTAN","value":1,"pct":1.05},{"name":"TAJIKISTAN","value":1,"pct":1.05}]},"oldRevision":{"total":96,"slices":[{"name":"TURKIYE","value":45,"pct":46.88},{"name":"PAKISTAN","value":11,"pct":11.46},{"name":"GEORGIA","value":8,"pct":8.33},{"name":"UZBEKISTAN","value":7,"pct":7.29},{"name":"KAZAKHISTAN","value":5,"pct":5.21},{"name":"MOROCCO","value":5,"pct":5.21},{"name":"SAUDI","value":5,"pct":5.21},{"name":"SRI LANKA","value":3,"pct":3.12},{"name":"EGYPT","value":2,"pct":2.08},{"name":"Azerbajian","value":1,"pct":1.04},{"name":"Mongolia","value":1,"pct":1.04},{"name":"OMAN","value":1,"pct":1.04},{"name":"TUNISIA","value":1,"pct":1.04},{"name":"UKRAINE","value":1,"pct":1.04}]},"contracts":{"total":21,"slices":[{"name":"PAKISTAN","value":15,"pct":71.43},{"name":"TURKIYE","value":5,"pct":23.81},{"name":"GEORGIA","value":1,"pct":4.76}]},"award":{"total":12,"slices":[{"name":"TURKIYE","value":7,"pct":58.33},{"name":"PAKISTAN","value":2,"pct":16.67},{"name":"GEORGIA","value":1,"pct":8.33},{"name":"KAZAKHISTAN","value":1,"pct":8.33},{"name":"UZBEKISTAN","value":1,"pct":8.33}]},"analysisCap":{"total":37.115,"slices":[{"name":"SAUDI","value":8.5,"pct":22.9},{"name":"UZBEKISTAN","value":7.35,"pct":19.8},{"name":"TURKIYE","value":5.955,"pct":16.04},{"name":"EGYPT","value":5.2,"pct":14.01},{"name":"MOROCCO","value":4.46,"pct":12.02},{"name":"KAZAKHISTAN","value":2.57,"pct":6.92},{"name":"GEORGIA","value":0.686,"pct":1.85},{"name":"UKRAINE","value":0.432,"pct":1.16},{"name":"Kyrgyzstan","value":0.4,"pct":1.08},{"name":"OMAN","value":0.4,"pct":1.08},{"name":"PAKISTAN","value":0.367,"pct":0.99},{"name":"Azerbajian","value":0.24,"pct":0.65},{"name":"TAJIKISTAN","value":0.2,"pct":0.54},{"name":"SRI LANKA","value":0.18,"pct":0.48},{"name":"Mongolia","value":0.1,"pct":0.27},{"name":"TUNISIA","value":0.075,"pct":0.2}]},"new2026Cap":{"total":14.637,"slices":[{"name":"TURKIYE","value":3.817,"pct":26.08},{"name":"EGYPT","value":3.4,"pct":23.23},{"name":"UZBEKISTAN","value":2.8,"pct":19.13},{"name":"SAUDI","value":2.2,"pct":15.03},{"name":"MOROCCO","value":1.1,"pct":7.52},{"name":"UKRAINE","value":0.402,"pct":2.75},{"name":"Kyrgyzstan","value":0.4,"pct":2.73},{"name":"TAJIKISTAN","value":0.2,"pct":1.37},{"name":"KAZAKHISTAN","value":0.17,"pct":1.16},{"name":"PAKISTAN","value":0.092,"pct":0.63},{"name":"GEORGIA","value":0.055,"pct":0.38}]},"oldRevisionCap":{"total":22.479,"slices":[{"name":"SAUDI","value":6.3,"pct":28.03},{"name":"UZBEKISTAN","value":4.55,"pct":20.24},{"name":"MOROCCO","value":3.36,"pct":14.95},{"name":"KAZAKHISTAN","value":2.4,"pct":10.68},{"name":"TURKIYE","value":2.138,"pct":9.51},{"name":"EGYPT","value":1.8,"pct":8.01},{"name":"GEORGIA","value":0.631,"pct":2.81},{"name":"OMAN","value":0.4,"pct":1.78},{"name":"PAKISTAN","value":0.275,"pct":1.22},{"name":"Azerbajian","value":0.24,"pct":1.07},{"name":"SRI LANKA","value":0.18,"pct":0.8},{"name":"Mongolia","value":0.1,"pct":0.44},{"name":"TUNISIA","value":0.075,"pct":0.33},{"name":"UKRAINE","value":0.03,"pct":0.13}]},"contractsCap":{"total":0.362,"slices":[{"name":"TURKIYE","value":0.199,"pct":55.1},{"name":"PAKISTAN","value":0.113,"pct":31.09},{"name":"GEORGIA","value":0.05,"pct":13.82}]},"awardCap":{"total":2.057,"slices":[{"name":"UZBEKISTAN","value":1.5,"pct":72.94},{"name":"TURKIYE","value":0.292,"pct":14.17},{"name":"KAZAKHISTAN","value":0.15,"pct":7.29},{"name":"GEORGIA","value":0.11,"pct":5.35},{"name":"PAKISTAN","value":0.005,"pct":0.24}]}};
 
     const METRICS_COUNT = [
       { key: "analysis", title: "Number of Analysis in total", unit: "count" },
@@ -364,11 +364,11 @@
     ];
 
     const METRICS_CAPACITY = [
-      { key: "analysisCap", title: "Installed capacity of Analysis in total", unit: "MW" },
-      { key: "new2026Cap", title: "Installed capacity of Projects newly received in 2026", unit: "MW" },
-      { key: "oldRevisionCap", title: "Installed capacity of old Projects with revision in 2026", unit: "MW" },
-      { key: "contractsCap", title: "Installed capacity of contracts signed", unit: "MW" },
-      { key: "awardCap", title: "Installed capacity of projects with winning bid notifications", unit: "MW" },
+      { key: "analysisCap", title: "Installed capacity of Analysis in total", unit: "GW" },
+      { key: "new2026Cap", title: "Installed capacity of Projects newly received in 2026", unit: "GW" },
+      { key: "oldRevisionCap", title: "Installed capacity of old Projects with revision in 2026", unit: "GW" },
+      { key: "contractsCap", title: "Installed capacity of contracts signed", unit: "GW" },
+      { key: "awardCap", title: "Installed capacity of projects with winning bid notifications", unit: "GW" },
     ];
 
     const COLORS = [
@@ -383,18 +383,21 @@
       return Number(p).toFixed(1) + "%";
     }
 
-    function fmtNum(v) {
+    function fmtNum(v, unit) {
       const n = Number(v);
       if (!Number.isFinite(n)) return String(v);
+      const maxFrac = unit === "GW" ? 3 : 1;
+      const minFrac =
+        Number.isInteger(n) ? 0 : (unit === "GW" ? Math.min(3, (String(n).split(".")[1] || "").length || 1) : 1);
       return n.toLocaleString("en-US", {
-        maximumFractionDigits: 1,
-        minimumFractionDigits: Number.isInteger(n) ? 0 : 1,
+        maximumFractionDigits: maxFrac,
+        minimumFractionDigits: minFrac,
       });
     }
 
     function fmtValue(v, unit) {
-      if (unit === "MW") return fmtNum(v) + " MW";
-      return fmtNum(v);
+      if (unit === "GW") return fmtNum(v, unit) + " GW";
+      return fmtNum(v, unit);
     }
 
     function displayName(raw) {
@@ -430,7 +433,7 @@
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
       const unit = opts.unit || "count";
-      const isMW = unit === "MW";
+      const isGW = unit === "GW";
       const W = large ? 960 : 680;
       const H = large ? 580 : 400;
 
@@ -438,8 +441,8 @@
       const cy = H / 2;
       const r = large ? 108 : 76;
       const stroke = large ? 38 : 28;
-      const centerSize = isMW
-        ? (large ? 28 : 22)
+      const centerSize = isGW
+        ? (large ? 32 : 24)
         : (large ? 44 : 34);
 
       const legendX = large ? 370 : 255;
@@ -453,7 +456,7 @@
       const legendBlock = n * rowH;
       const legendTop = Math.max(large ? 20 : 14, (H - legendBlock) / 2);
       const nameColW = large ? 112 : 92;
-      const valColW = isMW ? (large ? 128 : 110) : (large ? 92 : 80);
+      const valColW = isGW ? (large ? 120 : 104) : (large ? 92 : 80);
       const barX0 = legendX + nameColW;
       const barX1 = legendRight - valColW;
       const barMaxW = Math.max(60, barX1 - barX0);
@@ -510,12 +513,12 @@
         })
         .join("");
 
-      const centerLabel = isMW ? "MW" : "Total";
+      const centerLabel = isGW ? "GW" : "Total";
       const center = [
         '<text x="' + cx + '" y="' + (cy - 6) +
           '" text-anchor="middle" fill="#1f2a33" font-size="' + centerSize +
           '" font-weight="700" font-family="IBM Plex Sans, sans-serif">' +
-          fmtNum(totalValue) + "</text>",
+          fmtNum(totalValue, unit) + "</text>",
         '<text x="' + cx + '" y="' + (cy + (large ? 20 : 16)) +
           '" text-anchor="middle" fill="#6b7785" font-size="' + (large ? 14 : 12) +
           '" font-family="IBM Plex Sans, sans-serif">' + centerLabel + "</text>",
@@ -696,15 +699,15 @@
       metrics.forEach((m) => {
         const d = DATA[m.key];
         const unitSuffix =
-          m.unit === "MW"
-            ? '<span class="unit">MW</span>'
+          m.unit === "GW"
+            ? '<span class="unit">GW</span>'
             : "";
         kpiEl.insertAdjacentHTML(
           "beforeend",
           `
         <article class="card">
           <h2 class="card-title">${m.title}</h2>
-          <div class="kpi-value">${fmtNum(d.total)}${unitSuffix}</div>
+          <div class="kpi-value">${fmtNum(d.total, m.unit)}${unitSuffix}</div>
         </article>
       `
         );
