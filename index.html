@@ -354,277 +354,138 @@
       return (Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n) : n.toFixed(2)) + "%";
     }
 
-    function displayName(raw) {
-      const fixes = {
-        turkiye: "Türkiye",
-        azerbajian: "Azerbaijan",
-        azerbaijan: "Azerbaijan",
-        kazakhistan: "Kazakhstan",
-        kazakhstan: "Kazakhstan",
-        saudi: "Saudi Arabia",
-        "sri lanka": "Sri Lanka",
-        uk: "UK",
-        usa: "USA",
-        uae: "UAE",
-      };
-      const key = String(raw || "").trim().toLowerCase();
-      if (fixes[key]) return fixes[key];
-      return String(raw || "")
-        .toLowerCase()
-        .split(/[\s_-]+/)
-        .filter(Boolean)
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ");
-    }
-
     function donutSVG(slices, totalValue, opts = {}) {
-      // Labels fan around the ring in 4 sides. Position follows slice angle;
-      // crowded top/bottom rows spill to left/right so text never stacks.
+      // Feishu-style: left/right columns only, even vertical stack, elbow + underline.
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
-      const W = large ? 1040 : 800;
-      const H = large ? 680 : 500;
+      const W = large ? 920 : 640;
+      const H = large ? 560 : 400;
       const cx = W / 2;
       const cy = H / 2;
-      const r = large ? 115 : 80;
-      const stroke = large ? 40 : 28;
-      const fontSize = large ? 13 : 11;
-      const centerSize = large ? 46 : 32;
-      const charW = large ? 7.6 : 6.6;
+      const r = large ? 118 : 82;
+      const stroke = large ? 42 : 30;
+      const fontSize = large ? 14 : 12;
+      const centerSize = large ? 48 : 34;
+      const charW = large ? 7.8 : 6.7;
       const elbowR = r + stroke / 2;
+      const pad = large ? 20 : 14;
       const minGap = large ? 22 : 18;
-      const pad = large ? 16 : 12;
-
-      function zoneOf(mid) {
-        // Wider bottom/top bands so labels actually use all four sides
-        let deg = (mid * 180) / Math.PI;
-        deg = ((deg % 360) + 360) % 360;
-        if (deg >= 325 || deg < 50) return "right";
-        if (deg >= 50 && deg < 155) return "bottom";
-        if (deg >= 155 && deg < 230) return "left";
-        return "top";
-      }
+      const gapAngle = slices.length > 1 ? 0.012 : 0;
 
       let angle = -Math.PI / 2;
       const arcs = [];
-      const items = [];
+      const left = [];
+      const right = [];
 
       slices.forEach(function (s, i) {
-        const sweep = (s.value / total) * Math.PI * 2;
-        const a2 = angle + sweep;
-        const mid = angle + sweep / 2;
+        const sweep = Math.max(0, (s.value / total) * Math.PI * 2 - gapAngle);
+        const a0 = angle + gapAngle / 2;
+        const a1 = a0 + sweep;
+        const mid = a0 + sweep / 2;
 
         if (slices.length === 1) {
           arcs.push(
-            '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' +
-              colorFor(i) + '" stroke-width="' + stroke + '" />'
+            '<circle cx="' + cx + '" cy="' + cy + '" r="' + r +
+            '" fill="none" stroke="' + colorFor(i) + '" stroke-width="' + stroke + '" />'
           );
         } else {
-          const x1 = cx + r * Math.cos(angle);
-          const y1 = cy + r * Math.sin(angle);
-          const x2 = cx + r * Math.cos(a2);
-          const y2 = cy + r * Math.sin(a2);
+          const x1 = cx + r * Math.cos(a0);
+          const y1 = cy + r * Math.sin(a0);
+          const x2 = cx + r * Math.cos(a1);
+          const y2 = cy + r * Math.sin(a1);
           const largeArc = sweep > Math.PI ? 1 : 0;
           arcs.push(
             '<path d="M ' + x1 + " " + y1 + " A " + r + " " + r + " 0 " + largeArc +
-              " 1 " + x2 + " " + y2 + '" fill="none" stroke="' + colorFor(i) +
-              '" stroke-width="' + stroke + '" />'
+            " 1 " + x2 + " " + y2 + '" fill="none" stroke="' + colorFor(i) +
+            '" stroke-width="' + stroke + '" />'
           );
         }
 
-        const name = displayName(s.name);
+        const name = String(s.name || "");
         const rest = ": " + s.value + " (" + fmtPct(s.pct) + ")";
-        items.push({
+        const textW = Math.max(72, (name + rest).length * charW);
+        const item = {
           i: i,
-          mid: mid,
-          zone: zoneOf(mid),
           name: name,
           rest: rest,
-          textW: Math.max(70, (name + rest).length * charW),
+          textW: textW,
           ex: cx + elbowR * Math.cos(mid),
           ey: cy + elbowR * Math.sin(mid),
-          prefX: cx + (elbowR + (large ? 40 : 28)) * Math.cos(mid),
-          prefY: cy + (elbowR + (large ? 40 : 28)) * Math.sin(mid),
-          x: 0,
-          y: 0,
-          anchor: "start",
-        });
-        angle = a2;
+        };
+        (Math.cos(mid) >= 0 ? right : left).push(item);
+        angle += (s.value / total) * Math.PI * 2;
       });
 
-      const zones = { top: [], right: [], bottom: [], left: [] };
-      items.forEach(function (it) {
-        zones[it.zone].push(it);
-      });
-
-      // Spill crowded top/bottom into left/right (use empty side space)
-      function spillRow(rowName, maxN) {
-        const row = zones[rowName];
-        row.sort(function (a, b) {
-          return a.ex - b.ex;
-        });
-        while (row.length > maxN) {
-          if (zones.left.length <= zones.right.length) {
-            const m = row.shift();
-            m.zone = "left";
-            zones.left.push(m);
-          } else {
-            const m = row.pop();
-            m.zone = "right";
-            zones.right.push(m);
-          }
-        }
-      }
-      spillRow("top", large ? 3 : 2);
-      spillRow("bottom", large ? 3 : 2);
-
-      function layoutVertical(side, isRight) {
-        const xText = isRight ? W - pad : pad;
-        const yMin = pad + fontSize;
-        const yMax = H - pad;
-        // Sort by anchor Y so leader lines never cross
-        side.sort(function (a, b) {
+      function layoutSide(items, isRight) {
+        items.sort(function (a, b) {
           return a.ey - b.ey;
         });
-        side.forEach(function (it) {
-          it.x = xText;
-          it.y = Math.max(yMin, Math.min(yMax, it.ey));
-          it.anchor = isRight ? "end" : "start";
+        const n = items.length;
+        if (!n) return;
+
+        const top = pad + fontSize;
+        const bottom = H - pad;
+        const avail = bottom - top;
+        var gap = n === 1 ? 0 : Math.max(minGap, avail / (n - 1));
+        if ((n - 1) * gap > avail) gap = avail / Math.max(n - 1, 1);
+        const block = (n - 1) * gap;
+        var y0 = (H - block) / 2;
+        if (y0 < top) y0 = top;
+        if (y0 + block > bottom) y0 = bottom - block;
+
+        // Feishu: right column left-aligned; left column right-aligned
+        const xCol = isRight
+          ? cx + elbowR + (large ? 28 : 20)
+          : cx - elbowR - (large ? 28 : 20);
+
+        items.forEach(function (it, idx) {
+          it.y = n === 1 ? Math.max(top, Math.min(bottom, it.ey)) : y0 + idx * gap;
+          it.x = xCol;
+          it.anchor = isRight ? "start" : "end";
+          it.isRight = isRight;
         });
-        for (var pass = 0; pass < 6; pass++) {
-          var i;
-          for (i = 1; i < side.length; i++) {
-            if (side[i].y < side[i - 1].y + minGap) side[i].y = side[i - 1].y + minGap;
-          }
-          for (i = side.length - 2; i >= 0; i--) {
-            if (side[i].y > side[i + 1].y - minGap) side[i].y = side[i + 1].y - minGap;
-          }
-        }
-        if (side.length > 1) {
-          const need = (side.length - 1) * minGap;
-          if (side[0].y < yMin || side[side.length - 1].y > yMax || need > yMax - yMin) {
-            const gap = Math.min(minGap, (yMax - yMin) / Math.max(side.length - 1, 1));
-            const block = gap * (side.length - 1);
-            let start = (yMin + yMax - block) / 2;
-            start = Math.max(yMin, Math.min(start, yMax - block));
-            for (var k = 0; k < side.length; k++) side[k].y = start + k * gap;
-          } else {
-            for (var j = 0; j < side.length; j++) {
-              side[j].y = Math.max(yMin, Math.min(yMax, side[j].y));
+      }
+
+      layoutSide(left, false);
+      layoutSide(right, true);
+
+      function drawLabels(items) {
+        return items
+          .map(function (it) {
+            const lineY = it.y + 3;
+            var xJoin;
+            var xEnd;
+            if (it.isRight) {
+              // left-aligned column: join at text start, underline to the right
+              xJoin = it.x;
+              xEnd = it.x + it.textW;
+            } else {
+              // right-aligned column: join at text end (near pie), underline to the left
+              xJoin = it.x;
+              xEnd = it.x - it.textW;
             }
-          }
-        }
-      }
-
-      function layoutHorizontal(side, isTop) {
-        const yText = isTop ? pad + fontSize : H - pad;
-        const xMin = pad;
-        const xMax = W - pad;
-        // Sort by anchor X so leader lines never cross
-        side.sort(function (a, b) {
-          return a.ex - b.ex;
-        });
-        side.forEach(function (it) {
-          it.y = yText;
-          it.x = it.ex;
-          it.anchor = "middle";
-        });
-
-        function gapsOk() {
-          for (var i = 1; i < side.length; i++) {
-            const need = (side[i - 1].textW + side[i].textW) / 2 + 12;
-            if (side[i].x < side[i - 1].x + need) return false;
-          }
-          return true;
-        }
-
-        for (var pass = 0; pass < 8; pass++) {
-          var i;
-          for (i = 1; i < side.length; i++) {
-            const need = (side[i - 1].textW + side[i].textW) / 2 + 12;
-            if (side[i].x < side[i - 1].x + need) side[i].x = side[i - 1].x + need;
-          }
-          for (i = side.length - 2; i >= 0; i--) {
-            const need2 = (side[i].textW + side[i + 1].textW) / 2 + 12;
-            if (side[i].x > side[i + 1].x - need2) side[i].x = side[i + 1].x - need2;
-          }
-        }
-
-        var totalNeed = 0;
-        for (var t = 0; t < side.length; t++) totalNeed += side[t].textW;
-        totalNeed += Math.max(0, side.length - 1) * 12;
-
-        if (side.length > 0 && (totalNeed > xMax - xMin || !gapsOk())) {
-          var cursor = xMin;
-          var scale = 1;
-          if (totalNeed > xMax - xMin) scale = (xMax - xMin) / totalNeed;
-          for (var n = 0; n < side.length; n++) {
-            const w = side[n].textW * scale;
-            side[n].x = cursor + w / 2;
-            cursor += w + 12 * scale;
-          }
-        } else if (side.length > 0) {
-          const leftEdge = side[0].x - side[0].textW / 2;
-          const rightEdge = side[side.length - 1].x + side[side.length - 1].textW / 2;
-          const shift = (xMin + xMax) / 2 - (leftEdge + rightEdge) / 2;
-          for (var m = 0; m < side.length; m++) {
-            side[m].x += shift;
-            const half = side[m].textW / 2;
-            side[m].x = Math.max(xMin + half, Math.min(xMax - half, side[m].x));
-          }
-        }
-      }
-
-      layoutVertical(zones.left, false);
-      layoutVertical(zones.right, true);
-      layoutHorizontal(zones.top, true);
-      layoutHorizontal(zones.bottom, false);
-
-      const labelNodes = items
-        .map(function (it) {
-          const lineY = it.y + 3;
-          var path;
-
-          if (it.zone === "left") {
-            const join = it.x + it.textW;
-            const end = it.x;
-            path =
+            // Feishu: ring → join (near pie side of underline) → underline
+            const path =
               "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
-              " L " + join.toFixed(1) + " " + lineY.toFixed(1) +
-              " L " + end.toFixed(1) + " " + lineY.toFixed(1);
-          } else if (it.zone === "right") {
-            const join = it.x - it.textW;
-            const end = it.x;
-            path =
-              "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
-              " L " + join.toFixed(1) + " " + lineY.toFixed(1) +
-              " L " + end.toFixed(1) + " " + lineY.toFixed(1);
-          } else {
-            const left = it.x - it.textW / 2;
-            const right = it.x + it.textW / 2;
-            path =
-              "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
-              " L " + it.x.toFixed(1) + " " + lineY.toFixed(1) +
-              " L " + right.toFixed(1) + " " + lineY.toFixed(1) +
-              " M " + it.x.toFixed(1) + " " + lineY.toFixed(1) +
-              " L " + left.toFixed(1) + " " + lineY.toFixed(1);
-          }
+              " L " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
+              " L " + xEnd.toFixed(1) + " " + lineY.toFixed(1);
 
-          return [
-            '<path d="' + path + '" fill="none" stroke="#94a3b8" stroke-width="1.1" />',
-            '<circle cx="' + it.ex.toFixed(1) + '" cy="' + it.ey.toFixed(1) + '" r="' +
-              (large ? 3 : 2.4) + '" fill="#ffffff" stroke="' + colorFor(it.i) +
-              '" stroke-width="1.6" />',
-            '<text x="' + it.x.toFixed(1) + '" y="' + it.y.toFixed(1) +
+            return (
+              '<path d="' + path + '" fill="none" stroke="#94a3b8" stroke-width="1.15" />' +
+              '<circle cx="' + it.ex.toFixed(1) + '" cy="' + it.ey.toFixed(1) +
+              '" r="' + (large ? 3 : 2.5) + '" fill="#fff" stroke="' + colorFor(it.i) +
+              '" stroke-width="1.6" />' +
+              '<text x="' + it.x.toFixed(1) + '" y="' + it.y.toFixed(1) +
               '" text-anchor="' + it.anchor +
               '" dominant-baseline="alphabetic" fill="#1f2a33" font-size="' +
-              fontSize + '" font-family="IBM Plex Sans, sans-serif">',
-            '<tspan font-weight="600">' + it.name + "</tspan>",
-            '<tspan fill="#4b5563">' + it.rest + "</tspan>",
-            "</text>",
-          ].join("");
-        })
-        .join("");
+              fontSize + '" font-family="IBM Plex Sans, sans-serif">' +
+              '<tspan font-weight="600">' + it.name + "</tspan>" +
+              '<tspan fill="#4b5563">' + it.rest + "</tspan>" +
+              "</text>"
+            );
+          })
+          .join("");
+      }
 
       const center =
         '<text x="' + cx + '" y="' + (cy - 6) +
@@ -632,14 +493,15 @@
         '" font-weight="700" font-family="IBM Plex Sans, sans-serif">' +
         totalValue +
         "</text>" +
-        '<text x="' + cx + '" y="' + (cy + (large ? 20 : 15)) +
-        '" text-anchor="middle" fill="#6b7785" font-size="' + (large ? 14 : 12) +
+        '<text x="' + cx + '" y="' + (cy + (large ? 22 : 16)) +
+        '" text-anchor="middle" fill="#6b7785" font-size="' + (large ? 15 : 12) +
         '" font-family="IBM Plex Sans, sans-serif">Total</text>';
 
       return (
         '<svg viewBox="0 0 ' + W + " " + H + '" aria-hidden="true">' +
         arcs.join("") +
-        labelNodes +
+        drawLabels(left) +
+        drawLabels(right) +
         center +
         "</svg>"
       );
