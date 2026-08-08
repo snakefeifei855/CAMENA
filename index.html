@@ -88,7 +88,7 @@
     }
 
     .card.chart {
-      min-height: 380px;
+      min-height: 420px;
       display: flex;
       flex-direction: column;
     }
@@ -98,7 +98,7 @@
       font-size: 0.9rem;
       font-weight: 500;
       line-height: 1.35;
-      margin: 0 0 10px;
+      margin: 0 0 8px;
       min-height: 2.5em;
     }
 
@@ -112,34 +112,19 @@
 
     .donut-wrap {
       position: relative;
-      width: min(100%, 340px);
-      aspect-ratio: 1;
+      width: 100%;
       margin: 0 auto;
       flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
-    .donut-wrap svg { width: 100%; height: 100%; display: block; }
-
-    .donut-center {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-content: center;
-      text-align: center;
-      pointer-events: none;
-    }
-
-    .donut-center .n {
-      font-size: 1.85rem;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      line-height: 1;
-    }
-
-    .donut-center .t {
-      margin-top: 4px;
-      color: var(--muted);
-      font-size: 0.82rem;
+    .donut-wrap svg {
+      width: 100%;
+      height: auto;
+      max-height: 360px;
+      display: block;
     }
 
     .footnote {
@@ -196,20 +181,20 @@
       return (Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n) : n.toFixed(2)) + "%";
     }
 
-    function donutSVG(slices) {
+    function donutSVG(slices, totalValue) {
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
-      const size = 360;
-      const cx = size / 2;
-      const cy = size / 2;
-      const r = 78;
+      const W = 620;
+      const H = 360;
+      const cx = W / 2;
+      const cy = H / 2;
+      const r = 82;
       const stroke = 30;
-      const labelR = 118;
+      const elbowR = r + stroke / 2 + 12;
+
       let angle = -Math.PI / 2;
       const arcs = [];
-      const labels = [];
-
-      // Only label slices that are readable (>= ~3% or top items)
-      const minLabelPct = slices.length > 8 ? 3.5 : 2.2;
+      const left = [];
+      const right = [];
 
       slices.forEach((s, i) => {
         const sweep = (s.value / total) * Math.PI * 2;
@@ -229,20 +214,56 @@
           );
         }
 
-        if (s.pct >= minLabelPct || i < 4) {
-          const lx = cx + labelR * Math.cos(mid);
-          const ly = cy + labelR * Math.sin(mid);
-          const anchor = Math.cos(mid) >= 0.15 ? "start" : (Math.cos(mid) <= -0.15 ? "end" : "middle");
-          const line = `${s.name}: ${s.value} (${fmtPct(s.pct)})`;
-          labels.push(
-            `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" fill="#1f2a33" font-size="11" font-family="IBM Plex Sans, sans-serif">${line}</text>`
-          );
-        }
-
+        const item = {
+          i,
+          mid,
+          text: `${s.name}: ${s.value} (${fmtPct(s.pct)})`,
+          ex: cx + elbowR * Math.cos(mid),
+          ey: cy + elbowR * Math.sin(mid),
+          side: Math.cos(mid) >= 0 ? "right" : "left",
+        };
+        (item.side === "right" ? right : left).push(item);
         angle = a2;
       });
 
-      return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true">${arcs.join("")}${labels.join("")}</svg>`;
+      // Sort by vertical angle position and spread evenly to avoid overlap
+      function layoutSide(items, side) {
+        items.sort((a, b) => a.ey - b.ey);
+        const n = items.length;
+        if (!n) return [];
+        const top = 28;
+        const bottom = H - 28;
+        const gap = Math.min(22, (bottom - top) / Math.max(n, 1));
+        const block = gap * (n - 1);
+        let y0 = (H - block) / 2;
+        y0 = Math.max(top, Math.min(y0, bottom - block));
+
+        const xLabel = side === "right" ? W - 14 : 14;
+        const xElbow2 = side === "right" ? W - 178 : 178;
+        const anchor = side === "right" ? "end" : "start";
+
+        return items.map((it, idx) => {
+          const ly = y0 + idx * gap;
+          const path = `M ${it.ex.toFixed(1)} ${it.ey.toFixed(1)} L ${xElbow2} ${ly.toFixed(1)} L ${side === "right" ? xLabel - 6 : xLabel + 6} ${ly.toFixed(1)}`;
+          return `
+            <path d="${path}" fill="none" stroke="#94a3b8" stroke-width="1" />
+            <circle cx="${it.ex.toFixed(1)}" cy="${it.ey.toFixed(1)}" r="2.2" fill="${colorFor(it.i)}" />
+            <text x="${xLabel}" y="${ly.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle"
+              fill="#1f2a33" font-size="12.5" font-family="IBM Plex Sans, sans-serif">${it.text}</text>
+          `;
+        });
+      }
+
+      const labelNodes = [...layoutSide(left, "left"), ...layoutSide(right, "right")].join("");
+
+      const center = `
+        <text x="${cx}" y="${cy - 6}" text-anchor="middle" fill="#1f2a33" font-size="34" font-weight="700"
+          font-family="IBM Plex Sans, sans-serif">${totalValue}</text>
+        <text x="${cx}" y="${cy + 18}" text-anchor="middle" fill="#6b7785" font-size="13"
+          font-family="IBM Plex Sans, sans-serif">Total</text>
+      `;
+
+      return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${arcs.join("")}${labelNodes}${center}</svg>`;
     }
 
     const kpiRoot = document.getElementById("kpi-row");
@@ -261,11 +282,7 @@
         <article class="card chart">
           <h2 class="card-title">${m.title}</h2>
           <div class="donut-wrap">
-            ${donutSVG(d.slices)}
-            <div class="donut-center">
-              <div class="n">${d.total}</div>
-              <div class="t">Total</div>
-            </div>
+            ${donutSVG(d.slices, d.total)}
           </div>
         </article>
       `);
