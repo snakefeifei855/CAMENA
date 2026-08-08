@@ -355,30 +355,32 @@
     }
 
     function donutSVG(slices, totalValue, opts = {}) {
-      // Readable labeling: callouts only when a slice is big enough to trace;
-      // tiny slices go to a color legend (no spider lines).
+      // Match Feishu donut exactly:
+      // - left / right columns by slice mid-angle
+      // - labels evenly readable (prefer anchor Y, nudge apart)
+      // - leader: diagonal from ring edge → horizontal underline
+      // - lines stay in outside gutter (never through ring / hole)
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
-      const W = large ? 960 : 700;
-      const H = large ? 600 : 440;
+      const W = large ? 920 : 660;
+      const H = large ? 560 : 400;
       const cx = W / 2;
-      const cy = large ? H / 2 - 18 : H / 2 - 12;
-      const r = large ? 112 : 78;
-      const stroke = large ? 40 : 28;
-      const fontSize = large ? 13 : 11;
-      const centerSize = large ? 46 : 32;
-      const charW = large ? 7.4 : 6.3;
+      const cy = H / 2;
+      const r = large ? 120 : 84;
+      const stroke = large ? 42 : 30;
+      const fontSize = large ? 14 : 12;
+      const centerSize = large ? 48 : 34;
+      const charW = large ? 7.6 : 6.5;
       const elbowR = r + stroke / 2;
-      const clearR = elbowR + (large ? 10 : 7);
-      const pad = large ? 16 : 12;
+      const pad = large ? 18 : 12;
       const minGap = large ? 20 : 17;
-      const gapAngle = slices.length > 1 ? 0.012 : 0;
-      const CALL_MIN = 3; // % — below this, use legend instead of leader lines
+      const gutter = large ? 22 : 16;
+      const gapAngle = slices.length > 1 ? 0.01 : 0;
 
       let angle = -Math.PI / 2;
       const arcs = [];
-      const callouts = [];
-      const legendItems = [];
+      const left = [];
+      const right = [];
 
       slices.forEach(function (s, i) {
         const sweepFull = (s.value / total) * Math.PI * 2;
@@ -397,146 +399,121 @@
           const y1 = cy + r * Math.sin(a0);
           const x2 = cx + r * Math.cos(a1);
           const y2 = cy + r * Math.sin(a1);
-          const largeArc = sweep > Math.PI ? 1 : 0;
           arcs.push(
-            '<path d="M ' + x1 + " " + y1 + " A " + r + " " + r + " 0 " + largeArc +
-            " 1 " + x2 + " " + y2 + '" fill="none" stroke="' + colorFor(i) +
-            '" stroke-width="' + stroke + '" />'
+            '<path d="M ' + x1 + " " + y1 + " A " + r + " " + r + " 0 " +
+            (sweep > Math.PI ? 1 : 0) + " 1 " + x2 + " " + y2 +
+            '" fill="none" stroke="' + colorFor(i) + '" stroke-width="' + stroke + '" />'
           );
         }
 
         const name = String(s.name || "");
         const rest = ": " + s.value + " (" + fmtPct(s.pct) + ")";
-        const entry = {
+        const item = {
           i: i,
           name: name,
           rest: rest,
-          textW: Math.max(70, (name + rest).length * charW),
+          textW: Math.max(64, (name + rest).length * charW),
           mid: mid,
-          pct: Number(s.pct) || 0,
           ex: cx + elbowR * Math.cos(mid),
           ey: cy + elbowR * Math.sin(mid),
-          ox: cx + clearR * Math.cos(mid),
-          oy: cy + clearR * Math.sin(mid),
         };
-
-        // Always call out if few slices; otherwise only major ones
-        if (slices.length <= 6 || entry.pct >= CALL_MIN) {
-          callouts.push(entry);
-        } else {
-          legendItems.push(entry);
-        }
+        (Math.cos(mid) >= 0 ? right : left).push(item);
         angle += sweepFull;
       });
 
-      function zoneOf(mid) {
-        const c = Math.cos(mid);
-        const s = Math.sin(mid);
-        if (s < -0.5) return "top";
-        if (s > 0.55) return "bottom";
-        return c >= 0 ? "right" : "left";
-      }
+      function layoutSide(items, isRight) {
+        items.sort(function (a, b) {
+          return a.ey - b.ey;
+        });
+        const n = items.length;
+        if (!n) return;
 
-      const zones = { top: [], right: [], bottom: [], left: [] };
-      callouts.forEach(function (it) {
-        it.zone = zoneOf(it.mid);
-        zones[it.zone].push(it);
-      });
-
-      function layoutVertical(items, isRight) {
-        items.sort(function (a, b) { return a.ey - b.ey; });
         const top = pad + fontSize;
-        const bottom = cy + elbowR + (large ? 80 : 56);
-        const maxBottom = Math.min(H - (legendItems.length ? (large ? 78 : 64) : pad), bottom);
+        const bottom = H - pad;
+        // Column edge (Feishu): right labels left-aligned; left labels right-aligned
+        const xCol = isRight ? cx + elbowR + gutter : cx - elbowR - gutter;
+
         items.forEach(function (it) {
-          it.y = Math.max(top, Math.min(maxBottom, it.ey));
-          it.x = isRight
-            ? Math.min(W - pad - it.textW, Math.max(it.ox + 10, cx + clearR + 16))
-            : Math.max(pad + it.textW, Math.min(it.ox - 10, cx - clearR - 16));
+          it.x = xCol;
+          it.y = Math.max(top, Math.min(bottom, it.ey));
           it.anchor = isRight ? "start" : "end";
+          it.isRight = isRight;
         });
-        for (var pass = 0; pass < 5; pass++) {
+
+        // Push apart like Feishu — keep near slice Y, don't force full-height comb
+        for (var pass = 0; pass < 8; pass++) {
           var i;
-          for (i = 1; i < items.length; i++) {
-            if (items[i].y < items[i - 1].y + minGap) items[i].y = items[i - 1].y + minGap;
+          for (i = 1; i < n; i++) {
+            if (items[i].y < items[i - 1].y + minGap) {
+              items[i].y = items[i - 1].y + minGap;
+            }
           }
-          for (i = items.length - 2; i >= 0; i--) {
-            if (items[i].y > items[i + 1].y - minGap) items[i].y = items[i + 1].y - minGap;
+          for (i = n - 2; i >= 0; i--) {
+            if (items[i].y > items[i + 1].y - minGap) {
+              items[i].y = items[i + 1].y - minGap;
+            }
           }
         }
-        items.forEach(function (it) {
-          it.y = Math.max(top, Math.min(maxBottom, it.y));
-        });
-      }
 
-      function layoutHorizontal(items, isTop) {
-        items.sort(function (a, b) { return a.ex - b.ex; });
-        const y = isTop ? pad + fontSize : H - (legendItems.length ? (large ? 90 : 72) : pad);
-        items.forEach(function (it) {
-          it.y = y;
-          it.x = it.ex;
-          it.anchor = "middle";
-        });
-        for (var pass = 0; pass < 6; pass++) {
-          var i;
-          for (i = 1; i < items.length; i++) {
-            const need = (items[i - 1].textW + items[i].textW) / 2 + 10;
-            if (items[i].x < items[i - 1].x + need) items[i].x = items[i - 1].x + need;
-          }
-          for (i = items.length - 2; i >= 0; i--) {
-            const need2 = (items[i].textW + items[i + 1].textW) / 2 + 10;
-            if (items[i].x > items[i + 1].x - need2) items[i].x = items[i + 1].x - need2;
+        // If overflow, compress the block into the available band (still ordered)
+        if (n > 1 && (items[0].y < top || items[n - 1].y > bottom)) {
+          const gap = Math.min(minGap, (bottom - top) / (n - 1));
+          const block = gap * (n - 1);
+          // Bias block toward the slices' average Y (Feishu fans near the cluster)
+          var avg = 0;
+          for (var k = 0; k < n; k++) avg += items[k].ey;
+          avg /= n;
+          var y0 = avg - block / 2;
+          y0 = Math.max(top, Math.min(y0, bottom - block));
+          for (var j = 0; j < n; j++) items[j].y = y0 + j * gap;
+        } else {
+          for (var t = 0; t < n; t++) {
+            items[t].y = Math.max(top, Math.min(bottom, items[t].y));
           }
         }
-        items.forEach(function (it) {
-          const half = it.textW / 2;
-          it.x = Math.max(pad + half, Math.min(W - pad - half, it.x));
-        });
       }
 
-      layoutVertical(zones.left, false);
-      layoutVertical(zones.right, true);
-      layoutHorizontal(zones.top, true);
-      layoutHorizontal(zones.bottom, false);
+      layoutSide(left, false);
+      layoutSide(right, true);
 
-      function drawCallouts(items) {
+      function dist2(x, y) {
+        const dx = x - cx;
+        const dy = y - cy;
+        return dx * dx + dy * dy;
+      }
+
+      function drawLabels(items) {
+        const minR2 = (elbowR + 1) * (elbowR + 1);
         return items
           .map(function (it) {
             const lineY = it.y + 3;
-            var xJoin;
-            var xEnd;
+            const xJoin = it.x;
+            const xEnd = it.isRight ? it.x + it.textW : it.x - it.textW;
+
+            // Feishu 2-segment: ring → label join → underline.
+            // If the straight diagonal would cut the ring, bend via outside gutter first.
             var path;
-            if (it.zone === "left" || it.zone === "right") {
-              xJoin = it.x;
-              xEnd = it.zone === "right" ? it.x + it.textW : it.x - it.textW;
-              // stay outside: radial clear → horizontal at clear Y → vertical → underline
+            const midX = (it.ex + xJoin) / 2;
+            const midY = (it.ey + lineY) / 2;
+            if (dist2(midX, midY) < minR2) {
+              const gutX = it.isRight ? cx + elbowR + gutter : cx - elbowR - gutter;
               path =
                 "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
-                " L " + it.ox.toFixed(1) + " " + it.oy.toFixed(1) +
-                " L " + xJoin.toFixed(1) + " " + it.oy.toFixed(1) +
+                " L " + gutX.toFixed(1) + " " + it.ey.toFixed(1) +
                 " L " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
                 " L " + xEnd.toFixed(1) + " " + lineY.toFixed(1);
             } else {
-              xJoin = it.x;
-              const left = it.x - it.textW / 2;
-              const right = it.x + it.textW / 2;
               path =
                 "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
-                " L " + it.ox.toFixed(1) + " " + it.oy.toFixed(1) +
-                " L " + xJoin.toFixed(1) + " " + it.oy.toFixed(1) +
                 " L " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
-                " L " + right.toFixed(1) + " " + lineY.toFixed(1) +
-                " M " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
-                " L " + left.toFixed(1) + " " + lineY.toFixed(1);
+                " L " + xEnd.toFixed(1) + " " + lineY.toFixed(1);
             }
 
-            const strokeCol = colorFor(it.i);
             return (
-              '<path d="' + path + '" fill="none" stroke="' + strokeCol +
-              '" stroke-opacity="0.55" stroke-width="1.2" />' +
+              '<path d="' + path + '" fill="none" stroke="#94a3b8" stroke-width="1.15" />' +
               '<circle cx="' + it.ex.toFixed(1) + '" cy="' + it.ey.toFixed(1) +
-              '" r="' + (large ? 3 : 2.5) + '" fill="#fff" stroke="' + strokeCol +
-              '" stroke-width="1.7" />' +
+              '" r="' + (large ? 2.8 : 2.3) + '" fill="#ffffff" stroke="' + colorFor(it.i) +
+              '" stroke-width="1.5" />' +
               '<text x="' + it.x.toFixed(1) + '" y="' + it.y.toFixed(1) +
               '" text-anchor="' + it.anchor +
               '" dominant-baseline="alphabetic" fill="#1f2a33" font-size="' +
@@ -549,60 +526,21 @@
           .join("");
       }
 
-      var legendSvg = "";
-      if (legendItems.length) {
-        const legendY = H - (large ? 52 : 42);
-        const sw = large ? 9 : 8;
-        const fs = large ? 11 : 10;
-        const gapX = large ? 8 : 6;
-        // pack legend items in one wrapping row from left
-        var cursor = pad;
-        const row2y = legendY + (large ? 20 : 17);
-        var row = 0;
-        legendSvg =
-          '<text x="' + pad + '" y="' + (legendY - (large ? 14 : 12)) +
-          '" fill="#6b7785" font-size="' + fs +
-          '" font-family="IBM Plex Sans, sans-serif">Other countries</text>';
-
-        legendItems.forEach(function (it) {
-          const label = it.name + " " + it.rest.replace(/^:\s*/, "");
-          const w = Math.max(50, label.length * (large ? 6.2 : 5.4)) + sw + 6;
-          if (cursor + w > W - pad) {
-            cursor = pad;
-            row = 1;
-          }
-          const y = row === 0 ? legendY : row2y;
-          legendSvg +=
-            '<rect x="' + cursor + '" y="' + (y - sw + 1) + '" width="' + sw +
-            '" height="' + sw + '" rx="2" fill="' + colorFor(it.i) + '" />' +
-            '<text x="' + (cursor + sw + 5) + '" y="' + y +
-            '" dominant-baseline="alphabetic" fill="#334155" font-size="' + fs +
-            '" font-family="IBM Plex Sans, sans-serif">' + label + "</text>";
-          cursor += w + gapX;
-        });
-      }
-
-      const labelNodes =
-        drawCallouts(zones.left) +
-        drawCallouts(zones.right) +
-        drawCallouts(zones.top) +
-        drawCallouts(zones.bottom);
-
       const center =
         '<text x="' + cx + '" y="' + (cy - 6) +
         '" text-anchor="middle" fill="#1f2a33" font-size="' + centerSize +
         '" font-weight="700" font-family="IBM Plex Sans, sans-serif">' +
         totalValue +
         "</text>" +
-        '<text x="' + cx + '" y="' + (cy + (large ? 20 : 15)) +
-        '" text-anchor="middle" fill="#6b7785" font-size="' + (large ? 14 : 12) +
+        '<text x="' + cx + '" y="' + (cy + (large ? 22 : 16)) +
+        '" text-anchor="middle" fill="#6b7785" font-size="' + (large ? 15 : 12) +
         '" font-family="IBM Plex Sans, sans-serif">Total</text>';
 
       return (
         '<svg viewBox="0 0 ' + W + " " + H + '" aria-hidden="true">' +
         arcs.join("") +
-        labelNodes +
-        legendSvg +
+        drawLabels(left) +
+        drawLabels(right) +
         center +
         "</svg>"
       );
