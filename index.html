@@ -162,7 +162,7 @@
     .donut-wrap svg {
       width: 100%;
       height: auto;
-      max-height: 340px;
+      max-height: 400px;
       display: block;
     }
 
@@ -378,36 +378,42 @@
     }
 
     function donutSVG(slices, totalValue, opts = {}) {
-      // Professional layout: donut + ranked legend (no leader lines).
-      // Leader callouts fail with 8+ thin slices; legend is the BI standard.
+      // Callouts around the ring in 4 zones (top / right / bottom / left).
+      // Preferred position follows slice angle; only local collision nudging.
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
-      const W = large ? 920 : 640;
-      const H = large ? 560 : 380;
+      const W = large ? 1000 : 780;
+      const H = large ? 660 : 480;
+      const cx = W / 2;
+      const cy = H / 2 + (large ? 6 : 4);
+      const r = large ? 118 : 82;
+      const stroke = large ? 40 : 28;
+      const fontSize = large ? 13 : 11;
+      const centerSize = large ? 46 : 32;
+      const charW = large ? 7.1 : 6.1;
+      const elbowR = r + stroke / 2;
+      const minGap = large ? 20 : 17;
+      const pad = large ? 14 : 10;
 
-      const cx = large ? 180 : 125;
-      const cy = H / 2;
-      const r = large ? 108 : 78;
-      const stroke = large ? 38 : 28;
-      const centerSize = large ? 44 : 34;
-
-      const legendX = large ? 390 : 270;
-      const legendRight = W - (large ? 24 : 16);
-      const n = slices.length;
-      const availH = H - (large ? 48 : 36);
-      const rowH = Math.min(large ? 28 : 22, Math.max(large ? 17 : 15, availH / Math.max(n, 1)));
-      const nameSize = rowH < 18 ? (large ? 12 : 10) : (large ? 14 : 12);
-      const valSize = rowH < 18 ? (large ? 11 : 10) : (large ? 13 : 11);
-      const sw = large ? 10 : 8;
-      const legendBlock = n * rowH;
-      const legendTop = Math.max(large ? 24 : 18, (H - legendBlock) / 2);
+      function zoneOf(mid) {
+        // 0° = right, 90° = bottom, 180° = left, 270° = top (SVG y-down)
+        let deg = (mid * 180) / Math.PI;
+        deg = ((deg % 360) + 360) % 360;
+        if (deg >= 315 || deg < 45) return "right";
+        if (deg >= 45 && deg < 135) return "bottom";
+        if (deg >= 135 && deg < 225) return "left";
+        return "top";
+      }
 
       let angle = -Math.PI / 2;
       const arcs = [];
+      const items = [];
 
       slices.forEach((s, i) => {
         const sweep = (s.value / total) * Math.PI * 2;
         const a2 = angle + sweep;
+        const mid = angle + sweep / 2;
+
         if (slices.length === 1) {
           arcs.push(
             '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' +
@@ -422,63 +428,320 @@
           arcs.push(
             '<path d="M ' + x1 + " " + y1 + " A " + r + " " + r + " 0 " + largeArc +
               " 1 " + x2 + " " + y2 + '" fill="none" stroke="' + colorFor(i) +
-              '" stroke-width="' + stroke + '" stroke-linecap="butt" />'
+              '" stroke-width="' + stroke + '" />'
           );
         }
+
+        const name = displayName(s.name);
+        const rest = ": " + s.value + " (" + fmtPct(s.pct) + ")";
+        const label = name + rest;
+        const textW = Math.max(64, label.length * charW);
+        const zone = zoneOf(mid);
+
+        items.push({
+          i: i,
+          mid: mid,
+          zone: zone,
+          name: name,
+          rest: rest,
+          textW: textW,
+          ex: cx + elbowR * Math.cos(mid),
+          ey: cy + elbowR * Math.sin(mid),
+          // preferred along ray, then snapped to a side gutter
+          prefX: cx + (elbowR + (large ? 36 : 26)) * Math.cos(mid),
+          prefY: cy + (elbowR + (large ? 36 : 26)) * Math.sin(mid),
+          x: 0,
+          y: 0,
+        });
         angle = a2;
       });
 
-      const legend = slices
-        .map((s, i) => {
-          const y = legendTop + i * rowH;
-          const mid = y + rowH / 2;
-          const name = displayName(s.name);
-          const val = String(s.value);
-          const pct = fmtPct(s.pct);
-          const valText = val + "  ·  " + pct;
+      const zones = { top: [], right: [], bottom: [], left: [] };
+      items.forEach((it) => zones[it.zone].push(it));
+
+      // Keep top/bottom rows readable: spill extras toward left/right
+      function rebalance(row, side, maxN) {
+        row.sort(function (a, b) {
+          return a.mid - b.mid;
+        });
+        while (row.length > maxN) {
+          const move = side === "left" ? row.shift() : row.pop();
+          move.zone = side;
+          zones[side].push(move);
+        }
+      }
+      rebalance(zones.top, "left", large ? 6 : 5);
+      rebalance(zones.bottom, "right", large ? 6 : 5);
+
+      function nudge1D(arr, key, gap) {
+        arr.sort(function (a, b) {
+          return a[key] - b[key];
+        });
+        for (var pass = 0; pass < 5; pass++) {
+          var i;
+          for (i = 1; i < arr.length; i++) {
+            if (arr[i][key] < arr[i - 1][key] + gap) {
+              arr[i][key] = arr[i - 1][key] + gap;
+            }
+          }
+          for (i = arr.length - 2; i >= 0; i--) {
+            if (arr[i][key] > arr[i + 1][key] - gap) {
+              arr[i][key] = arr[i + 1][key] - gap;
+            }
+          }
+        }
+      }
+
+      // RIGHT: vertical stack on right gutter
+      (function () {
+        const side = zones.right;
+        const xText = W - pad;
+        side.forEach(function (it) {
+          it.y = Math.max(pad + fontSize, Math.min(H - pad, it.prefY));
+          it.x = xText;
+          it.anchor = "end";
+        });
+        nudge1D(side, "y", minGap);
+        side.forEach(function (it) {
+          it.y = Math.max(pad + fontSize, Math.min(H - pad, it.y));
+        });
+      })();
+
+      // LEFT: vertical stack on left gutter
+      (function () {
+        const side = zones.left;
+        const xText = pad;
+        side.forEach(function (it) {
+          it.y = Math.max(pad + fontSize, Math.min(H - pad, it.prefY));
+          it.x = xText;
+          it.anchor = "start";
+        });
+        nudge1D(side, "y", minGap);
+        side.forEach(function (it) {
+          it.y = Math.max(pad + fontSize, Math.min(H - pad, it.y));
+        });
+      })();
+
+      // TOP: horizontal row above the ring
+      (function () {
+        const side = zones.top;
+        const yText = pad + fontSize;
+        side.forEach(function (it) {
+          it.x = it.prefX;
+          it.y = yText;
+          it.anchor = "middle";
+        });
+        // gap by half text widths so labels don't overlap
+        side.sort(function (a, b) {
+          return a.x - b.x;
+        });
+        for (var pass = 0; pass < 5; pass++) {
+          var i;
+          for (i = 1; i < side.length; i++) {
+            const need = (side[i - 1].textW + side[i].textW) / 2 + 10;
+            if (side[i].x < side[i - 1].x + need) {
+              side[i].x = side[i - 1].x + need;
+            }
+          }
+          for (i = side.length - 2; i >= 0; i--) {
+            const need2 = (side[i].textW + side[i + 1].textW) / 2 + 10;
+            if (side[i].x > side[i + 1].x - need2) {
+              side[i].x = side[i + 1].x - need2;
+            }
+          }
+        }
+        side.forEach(function (it) {
+          const half = it.textW / 2;
+          it.x = Math.max(pad + half, Math.min(W - pad - half, it.x));
+        });
+      })();
+
+      // BOTTOM: horizontal row below the ring
+      (function () {
+        const side = zones.bottom;
+        const yText = H - pad;
+        side.forEach(function (it) {
+          it.x = it.prefX;
+          it.y = yText;
+          it.anchor = "middle";
+        });
+        side.sort(function (a, b) {
+          return a.x - b.x;
+        });
+        for (var pass = 0; pass < 5; pass++) {
+          var i;
+          for (i = 1; i < side.length; i++) {
+            const need = (side[i - 1].textW + side[i].textW) / 2 + 10;
+            if (side[i].x < side[i - 1].x + need) {
+              side[i].x = side[i - 1].x + need;
+            }
+          }
+          for (i = side.length - 2; i >= 0; i--) {
+            const need2 = (side[i].textW + side[i + 1].textW) / 2 + 10;
+            if (side[i].x > side[i + 1].x - need2) {
+              side[i].x = side[i + 1].x - need2;
+            }
+          }
+        }
+        side.forEach(function (it) {
+          const half = it.textW / 2;
+          it.x = Math.max(pad + half, Math.min(W - pad - half, it.x));
+        });
+      })();
+
+      const labelNodes = items
+        .map(function (it) {
+          const lineY = it.y + 3;
+          let xNear;
+          let xFar;
+          let path;
+
+          if (it.zone === "left") {
+            // pie is to the right of label → join at right edge of underline
+            xNear = it.x + it.textW;
+            xFar = it.x;
+            path =
+              "M " +
+              it.ex.toFixed(1) +
+              " " +
+              it.ey.toFixed(1) +
+              " L " +
+              xNear.toFixed(1) +
+              " " +
+              lineY.toFixed(1) +
+              " L " +
+              xFar.toFixed(1) +
+              " " +
+              lineY.toFixed(1);
+          } else if (it.zone === "right") {
+            // pie is to the left of label → join at left edge of underline
+            xNear = it.x - it.textW;
+            xFar = it.x;
+            path =
+              "M " +
+              it.ex.toFixed(1) +
+              " " +
+              it.ey.toFixed(1) +
+              " L " +
+              xNear.toFixed(1) +
+              " " +
+              lineY.toFixed(1) +
+              " L " +
+              xFar.toFixed(1) +
+              " " +
+              lineY.toFixed(1);
+          } else if (it.zone === "top") {
+            xNear = it.x - it.textW / 2;
+            xFar = it.x + it.textW / 2;
+            // ring -> down to underline center-ish then underline
+            const joinX = it.x;
+            path =
+              "M " +
+              it.ex.toFixed(1) +
+              " " +
+              it.ey.toFixed(1) +
+              " L " +
+              joinX.toFixed(1) +
+              " " +
+              lineY.toFixed(1) +
+              " L " +
+              xFar.toFixed(1) +
+              " " +
+              lineY.toFixed(1);
+            // also draw left half of underline without going through text wrong way:
+            path +=
+              " M " +
+              joinX.toFixed(1) +
+              " " +
+              lineY.toFixed(1) +
+              " L " +
+              xNear.toFixed(1) +
+              " " +
+              lineY.toFixed(1);
+          } else {
+            // bottom
+            xNear = it.x - it.textW / 2;
+            xFar = it.x + it.textW / 2;
+            const joinX = it.x;
+            path =
+              "M " +
+              it.ex.toFixed(1) +
+              " " +
+              it.ey.toFixed(1) +
+              " L " +
+              joinX.toFixed(1) +
+              " " +
+              lineY.toFixed(1) +
+              " L " +
+              xFar.toFixed(1) +
+              " " +
+              lineY.toFixed(1);
+            path +=
+              " M " +
+              joinX.toFixed(1) +
+              " " +
+              lineY.toFixed(1) +
+              " L " +
+              xNear.toFixed(1) +
+              " " +
+              lineY.toFixed(1);
+          }
+
           return [
-            '<rect x="' + legendX + '" y="' + (mid - sw / 2).toFixed(1) + '" width="' + sw +
-              '" height="' + sw + '" rx="2" fill="' + colorFor(i) + '" />',
-            '<text x="' + (legendX + sw + 10) + '" y="' + mid.toFixed(1) +
-              '" dominant-baseline="middle" fill="#1f2a33" font-size="' + nameSize +
-              '" font-weight="500" font-family="IBM Plex Sans, sans-serif">' +
-              name + "</text>",
-            '<text x="' + legendRight + '" y="' + mid.toFixed(1) +
-              '" text-anchor="end" dominant-baseline="middle" fill="#4b5563" font-size="' +
-              valSize + '" font-family="IBM Plex Sans, sans-serif">' +
-              valText + "</text>",
-            // soft row separator for readability when many items
-            i < n - 1
-              ? '<line x1="' + legendX + '" y1="' + (y + rowH).toFixed(1) + '" x2="' +
-                legendRight + '" y2="' + (y + rowH).toFixed(1) +
-                '" stroke="#eef2f5" stroke-width="1" />'
-              : "",
+            '<path d="' + path + '" fill="none" stroke="#94a3b8" stroke-width="1.1" />',
+            '<circle cx="' +
+              it.ex.toFixed(1) +
+              '" cy="' +
+              it.ey.toFixed(1) +
+              '" r="' +
+              (large ? 3 : 2.4) +
+              '" fill="#ffffff" stroke="' +
+              colorFor(it.i) +
+              '" stroke-width="1.6" />',
+            '<text x="' +
+              it.x.toFixed(1) +
+              '" y="' +
+              it.y.toFixed(1) +
+              '" text-anchor="' +
+              it.anchor +
+              '" dominant-baseline="alphabetic" fill="#1f2a33" font-size="' +
+              fontSize +
+              '" font-family="IBM Plex Sans, sans-serif">',
+            '<tspan font-weight="600">' + it.name + "</tspan>",
+            '<tspan fill="#4b5563">' + it.rest + "</tspan>",
+            "</text>",
           ].join("");
         })
         .join("");
 
       const center = [
-        '<text x="' + cx + '" y="' + (cy - 6) +
-          '" text-anchor="middle" fill="#1f2a33" font-size="' + centerSize +
+        '<text x="' +
+          cx +
+          '" y="' +
+          (cy - 6) +
+          '" text-anchor="middle" fill="#1f2a33" font-size="' +
+          centerSize +
           '" font-weight="700" font-family="IBM Plex Sans, sans-serif">' +
-          totalValue + "</text>",
-        '<text x="' + cx + '" y="' + (cy + (large ? 20 : 16)) +
-          '" text-anchor="middle" fill="#6b7785" font-size="' + (large ? 14 : 12) +
+          totalValue +
+          "</text>",
+        '<text x="' +
+          cx +
+          '" y="' +
+          (cy + (large ? 20 : 15)) +
+          '" text-anchor="middle" fill="#6b7785" font-size="' +
+          (large ? 14 : 12) +
           '" font-family="IBM Plex Sans, sans-serif">Total</text>',
       ].join("");
 
-      // subtle divider between chart and legend
-      const divider =
-        '<line x1="' + (legendX - (large ? 28 : 18)) + '" y1="' + (large ? 36 : 28) +
-        '" x2="' + (legendX - (large ? 28 : 18)) + '" y2="' + (H - (large ? 36 : 28)) +
-        '" stroke="#e6ebf0" stroke-width="1" />';
-
       return (
-        '<svg viewBox="0 0 ' + W + " " + H + '" aria-hidden="true">' +
+        '<svg viewBox="0 0 ' +
+        W +
+        " " +
+        H +
+        '" aria-hidden="true">' +
         arcs.join("") +
+        labelNodes +
         center +
-        divider +
-        legend +
         "</svg>"
       );
     }
