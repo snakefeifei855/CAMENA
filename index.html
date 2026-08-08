@@ -408,40 +408,29 @@
       });
 
       function layoutSide(items, side) {
-        // Sort top->bottom by anchor Y; keep this order so leaders cannot cross
+        // Top->bottom order around the arc (non-crossing when label Y keeps this order)
         items.sort((a, b) => a.ey - b.ey || a.mid - b.mid);
         const n = items.length;
         if (!n) return [];
-        const top = large ? 36 : 28;
-        const bottom = H - (large ? 36 : 28);
-        const minGap = large ? 20 : 16;
 
-        // Start at natural anchor Y, then separate overlaps while preserving order
-        const ys = items.map((it) => it.ey);
-        for (let i = 1; i < n; i++) {
-          if (ys[i] < ys[i - 1] + minGap) ys[i] = ys[i - 1] + minGap;
-        }
-        if (ys[n - 1] > bottom) {
-          const overflow = ys[n - 1] - bottom;
-          for (let i = 0; i < n; i++) ys[i] -= overflow;
-        }
-        if (ys[0] < top) {
-          const shift = top - ys[0];
-          for (let i = 0; i < n; i++) ys[i] += shift;
-        }
-        for (let i = n - 2; i >= 0; i--) {
-          if (ys[i] > ys[i + 1] - minGap) ys[i] = ys[i + 1] - minGap;
-        }
-        if (ys[0] < top) {
-          ys[0] = top;
-          for (let i = 1; i < n; i++) {
-            if (ys[i] < ys[i - 1] + minGap) ys[i] = ys[i - 1] + minGap;
-          }
-        }
+        const top = large ? 40 : 30;
+        const bottom = H - (large ? 40 : 30);
+        const minGap = large ? 18 : 15;
+        // Neat vertical column (Feishu-style): even spacing in angular order
+        const span = bottom - top;
+        const gap = Math.max(minGap, n > 1 ? span / (n - 1) : 0);
+        const block = gap * Math.max(n - 1, 0);
+        let y0 = (H - block) / 2;
+        y0 = Math.max(top, Math.min(y0, bottom - block));
+        const ys = items.map((_, idx) => y0 + idx * gap);
 
         const xLabel = side === "right" ? W - labelPad : labelPad;
-        // Elbow column outside the ring, closer to labels
-        const xElbow2 = side === "right" ? Math.min(W - 160, cx + r + stroke + 40) : Math.max(160, cx - r - stroke - 40);
+        // Shared vertical gutter outside the ring — all lines meet this column in order
+        const gutter = large ? 56 : 44;
+        const xGutter = side === "right"
+          ? cx + r + stroke / 2 + gutter
+          : cx - r - stroke / 2 - gutter;
+        const radialOut = large ? 26 : 18;
         const anchor = side === "right" ? "end" : "start";
         const nameFactor = large ? 8.6 : 7.5;
         const restFactor = large ? 7.4 : 6.6;
@@ -462,11 +451,19 @@
             nameEnd = xLabel + nameWidth;
           }
 
-          // Horizontal stub from anchor, then to label row — order preserved => no crossings
-          const stubX = side === "right"
-            ? Math.min(it.ex + 14, xElbow2)
-            : Math.max(it.ex - 14, xElbow2);
-          const path = `M ${it.ex.toFixed(1)} ${it.ey.toFixed(1)} L ${stubX.toFixed(1)} ${it.ey.toFixed(1)} L ${xElbow2} ${lineY.toFixed(1)} L ${nameStart.toFixed(1)} ${lineY.toFixed(1)}`;
+          // More folds, Feishu-like fan (order-preserving => no crossings):
+          // 1) radial out from ring anchor
+          // 2) to gutter at label row
+          // 3) horizontal into country name underline
+          const p1x = cx + (elbowR + radialOut) * Math.cos(it.mid);
+          const p1y = cy + (elbowR + radialOut) * Math.sin(it.mid);
+          const path = [
+            `M ${it.ex.toFixed(1)} ${it.ey.toFixed(1)}`,
+            `L ${p1x.toFixed(1)} ${p1y.toFixed(1)}`,
+            `L ${xGutter.toFixed(1)} ${lineY.toFixed(1)}`,
+            `L ${nameStart.toFixed(1)} ${lineY.toFixed(1)}`,
+          ].join(" ");
+
           return `
             <path d="${path}" fill="none" stroke="#94a3b8" stroke-width="1" />
             <line x1="${nameStart.toFixed(1)}" y1="${lineY.toFixed(1)}" x2="${nameEnd.toFixed(1)}" y2="${lineY.toFixed(1)}" stroke="#94a3b8" stroke-width="1" />
