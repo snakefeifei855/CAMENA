@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:no-bottom-pad -->
+  <!-- build:modal-export-tight -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CAMENA · H1 2026 Dashboard</title>
@@ -204,7 +204,7 @@
       border-radius: 14px;
       border: 1px solid var(--line);
       box-shadow: 0 12px 40px rgba(15, 23, 32, 0.18);
-      padding: 20px 22px 24px;
+      padding: 14px 16px 12px;
     }
 
     .modal-head {
@@ -212,7 +212,7 @@
       align-items: flex-start;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 8px;
+      margin-bottom: 2px;
     }
 
     .modal-head h3 {
@@ -274,21 +274,21 @@
     .modal-close:hover { background: #eef2f5; }
 
     .copy-toast {
-      margin: 0 0 8px;
+      margin: 0 0 4px;
       color: var(--teal);
       font-size: 0.86rem;
-      min-height: 1.2em;
+      min-height: 0;
     }
 
     .modal-chart {
       width: 100%;
-      min-height: 520px;
+      min-height: 0;
     }
 
     .modal-chart svg {
       width: 100%;
       height: auto;
-      max-height: 70vh;
+      max-height: none;
       display: block;
     }
 
@@ -449,15 +449,15 @@
         : (large ? 44 : 34);
 
       // Keep legend closer to the donut (less horizontal gap).
-      const legendX = large ? 310 : 215;
-      const legendRight = W - (large ? 18 : 12);
+      const legendX = large ? 280 : 215;
+      const legendRight = W - (large ? 16 : 12);
       const n = slices.length;
-      const topPad = large ? 8 : 4;
-      const bottomPad = large ? 8 : 4;
-      const rowH = large ? 26 : 20;
+      const topPad = large ? 6 : 4;
+      const bottomPad = large ? 6 : 4;
+      const rowH = large ? 24 : 20;
       const nameSize = large ? 13 : 12;
       const valSize = large ? 12 : 11;
-      const barH = large ? 14 : 11;
+      const barH = large ? 13 : 11;
       const legendBlock = n * rowH;
       const donutH = (r + stroke / 2) * 2;
       // Fit SVG height to content — no spare bottom whitespace.
@@ -579,10 +579,12 @@
         clone.setAttribute("height", String(H));
 
         const title = String(titleText || "").trim();
-        const titleH = title ? 56 : 0;
-        const padX = 24;
-        const padTop = title ? 20 : 0;
-        const padBottom = 16;
+        // Tight padding to match on-page chart spacing (title close to plot).
+        const titleGap = title ? 10 : 0;
+        const titleH = title ? 28 + titleGap : 0;
+        const padX = 14;
+        const padTop = title ? 10 : 6;
+        const padBottom = 8;
 
         const xml = new XMLSerializer().serializeToString(clone);
         const svgUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
@@ -601,7 +603,7 @@
 
           if (title) {
             ctx.fillStyle = "#1f2a33";
-            ctx.font = "600 22px 'IBM Plex Sans', sans-serif";
+            ctx.font = "600 20px 'IBM Plex Sans', sans-serif";
             ctx.textBaseline = "top";
             ctx.fillText(title, padX, padTop);
           }
