@@ -162,7 +162,7 @@
     .donut-wrap svg {
       width: 100%;
       height: auto;
-      max-height: 420px;
+      max-height: 340px;
       display: block;
     }
 
@@ -354,167 +354,131 @@
       return (Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n) : n.toFixed(2)) + "%";
     }
 
+    function displayName(raw) {
+      const fixes = {
+        turkiye: "Türkiye",
+        azerbajian: "Azerbaijan",
+        azerbaijan: "Azerbaijan",
+        kazakhistan: "Kazakhstan",
+        kazakhstan: "Kazakhstan",
+        saudi: "Saudi Arabia",
+        "sri lanka": "Sri Lanka",
+        uk: "UK",
+        usa: "USA",
+        uae: "UAE",
+      };
+      const key = String(raw || "").trim().toLowerCase();
+      if (fixes[key]) return fixes[key];
+      return String(raw || "")
+        .toLowerCase()
+        .split(/[\s_-]+/)
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    }
+
     function donutSVG(slices, totalValue, opts = {}) {
-      // Feishu style: largest slice on the LEFT; other labels in a right column;
-      // leader lines only travel in the outside gutter (never cross the ring).
+      // Professional layout: donut + ranked legend (no leader lines).
+      // Leader callouts fail with 8+ thin slices; legend is the BI standard.
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
-      const W = large ? 920 : 660;
-      const H = large ? 560 : 400;
-      const cx = W / 2;
+      const W = large ? 920 : 640;
+      const H = large ? 560 : 380;
+
+      const cx = large ? 180 : 125;
       const cy = H / 2;
-      const r = large ? 120 : 84;
-      const stroke = large ? 42 : 30;
-      const fontSize = large ? 14 : 12;
-      const centerSize = large ? 48 : 34;
-      const charW = large ? 7.6 : 6.5;
-      const elbowR = r + stroke / 2;
-      const pad = large ? 18 : 12;
-      const minGap = large ? 20 : 17;
-      const gutter = large ? 26 : 18;
-      const gapAngle = slices.length > 1 ? 0.01 : 0;
+      const r = large ? 108 : 78;
+      const stroke = large ? 38 : 28;
+      const centerSize = large ? 44 : 34;
 
-      // Put the first (largest) slice centered on the LEFT — same as Feishu reference
-      const firstSweep = (slices[0].value / total) * Math.PI * 2;
-      let angle = Math.PI - firstSweep / 2;
+      const legendX = large ? 390 : 270;
+      const legendRight = W - (large ? 24 : 16);
+      const n = slices.length;
+      const availH = H - (large ? 48 : 36);
+      const rowH = Math.min(large ? 28 : 22, Math.max(large ? 17 : 15, availH / Math.max(n, 1)));
+      const nameSize = rowH < 18 ? (large ? 12 : 10) : (large ? 14 : 12);
+      const valSize = rowH < 18 ? (large ? 11 : 10) : (large ? 13 : 11);
+      const sw = large ? 10 : 8;
+      const legendBlock = n * rowH;
+      const legendTop = Math.max(large ? 24 : 18, (H - legendBlock) / 2);
 
+      let angle = -Math.PI / 2;
       const arcs = [];
-      const left = [];
-      const right = [];
 
-      slices.forEach(function (s, i) {
-        const sweepFull = (s.value / total) * Math.PI * 2;
-        const sweep = Math.max(0, sweepFull - gapAngle);
-        const a0 = angle + gapAngle / 2;
-        const a1 = a0 + sweep;
-        const mid = a0 + sweep / 2;
-
+      slices.forEach((s, i) => {
+        const sweep = (s.value / total) * Math.PI * 2;
+        const a2 = angle + sweep;
         if (slices.length === 1) {
           arcs.push(
-            '<circle cx="' + cx + '" cy="' + cy + '" r="' + r +
-            '" fill="none" stroke="' + colorFor(i) + '" stroke-width="' + stroke + '" />'
+            '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' +
+              colorFor(i) + '" stroke-width="' + stroke + '" />'
           );
         } else {
-          const x1 = cx + r * Math.cos(a0);
-          const y1 = cy + r * Math.sin(a0);
-          const x2 = cx + r * Math.cos(a1);
-          const y2 = cy + r * Math.sin(a1);
+          const x1 = cx + r * Math.cos(angle);
+          const y1 = cy + r * Math.sin(angle);
+          const x2 = cx + r * Math.cos(a2);
+          const y2 = cy + r * Math.sin(a2);
+          const largeArc = sweep > Math.PI ? 1 : 0;
           arcs.push(
-            '<path d="M ' + x1 + " " + y1 + " A " + r + " " + r + " 0 " +
-            (sweep > Math.PI ? 1 : 0) + " 1 " + x2 + " " + y2 +
-            '" fill="none" stroke="' + colorFor(i) + '" stroke-width="' + stroke + '" />'
+            '<path d="M ' + x1 + " " + y1 + " A " + r + " " + r + " 0 " + largeArc +
+              " 1 " + x2 + " " + y2 + '" fill="none" stroke="' + colorFor(i) +
+              '" stroke-width="' + stroke + '" stroke-linecap="butt" />'
           );
         }
-
-        const name = String(s.name || "");
-        const rest = ": " + s.value + " (" + fmtPct(s.pct) + ")";
-        const item = {
-          i: i,
-          name: name,
-          rest: rest,
-          textW: Math.max(64, (name + rest).length * charW),
-          mid: mid,
-          ex: cx + elbowR * Math.cos(mid),
-          ey: cy + elbowR * Math.sin(mid),
-        };
-        (Math.cos(mid) >= 0 ? right : left).push(item);
-        angle += sweepFull;
+        angle = a2;
       });
 
-      function layoutSide(items, isRight) {
-        items.sort(function (a, b) {
-          return a.ey - b.ey;
-        });
-        const n = items.length;
-        if (!n) return;
+      const legend = slices
+        .map((s, i) => {
+          const y = legendTop + i * rowH;
+          const mid = y + rowH / 2;
+          const name = displayName(s.name);
+          const val = String(s.value);
+          const pct = fmtPct(s.pct);
+          const valText = val + "  ·  " + pct;
+          return [
+            '<rect x="' + legendX + '" y="' + (mid - sw / 2).toFixed(1) + '" width="' + sw +
+              '" height="' + sw + '" rx="2" fill="' + colorFor(i) + '" />',
+            '<text x="' + (legendX + sw + 10) + '" y="' + mid.toFixed(1) +
+              '" dominant-baseline="middle" fill="#1f2a33" font-size="' + nameSize +
+              '" font-weight="500" font-family="IBM Plex Sans, sans-serif">' +
+              name + "</text>",
+            '<text x="' + legendRight + '" y="' + mid.toFixed(1) +
+              '" text-anchor="end" dominant-baseline="middle" fill="#4b5563" font-size="' +
+              valSize + '" font-family="IBM Plex Sans, sans-serif">' +
+              valText + "</text>",
+            // soft row separator for readability when many items
+            i < n - 1
+              ? '<line x1="' + legendX + '" y1="' + (y + rowH).toFixed(1) + '" x2="' +
+                legendRight + '" y2="' + (y + rowH).toFixed(1) +
+                '" stroke="#eef2f5" stroke-width="1" />'
+              : "",
+          ].join("");
+        })
+        .join("");
 
-        const top = pad + fontSize;
-        const bottom = H - pad;
-        const xCol = isRight ? cx + elbowR + gutter : cx - elbowR - gutter;
-
-        items.forEach(function (it) {
-          it.x = xCol;
-          it.y = Math.max(top, Math.min(bottom, it.ey));
-          it.anchor = isRight ? "start" : "end";
-          it.isRight = isRight;
-        });
-
-        for (var pass = 0; pass < 8; pass++) {
-          var i;
-          for (i = 1; i < n; i++) {
-            if (items[i].y < items[i - 1].y + minGap) items[i].y = items[i - 1].y + minGap;
-          }
-          for (i = n - 2; i >= 0; i--) {
-            if (items[i].y > items[i + 1].y - minGap) items[i].y = items[i + 1].y - minGap;
-          }
-        }
-
-        if (n > 1 && (items[0].y < top || items[n - 1].y > bottom)) {
-          const gap = Math.min(minGap, (bottom - top) / (n - 1));
-          const block = gap * (n - 1);
-          var avg = 0;
-          for (var k = 0; k < n; k++) avg += items[k].ey;
-          avg /= n;
-          var y0 = Math.max(top, Math.min(avg - block / 2, bottom - block));
-          for (var j = 0; j < n; j++) items[j].y = y0 + j * gap;
-        } else {
-          for (var t = 0; t < n; t++) {
-            items[t].y = Math.max(top, Math.min(bottom, items[t].y));
-          }
-        }
-      }
-
-      layoutSide(left, false);
-      layoutSide(right, true);
-
-      function drawLabels(items) {
-        return items
-          .map(function (it) {
-            const lineY = it.y + 3;
-            const xJoin = it.x;
-            const xEnd = it.isRight ? it.x + it.textW : it.x - it.textW;
-            // Outside-only elbow (Feishu-safe):
-            // ring → horizontal out to column X at anchor Y → vertical to label → underline
-            // All of this stays in the side gutter; never chords through the donut.
-            const path =
-              "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
-              " L " + xJoin.toFixed(1) + " " + it.ey.toFixed(1) +
-              " L " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
-              " L " + xEnd.toFixed(1) + " " + lineY.toFixed(1);
-
-            return (
-              '<path d="' + path + '" fill="none" stroke="#94a3b8" stroke-width="1.15" />' +
-              '<circle cx="' + it.ex.toFixed(1) + '" cy="' + it.ey.toFixed(1) +
-              '" r="' + (large ? 2.8 : 2.3) + '" fill="#ffffff" stroke="' + colorFor(it.i) +
-              '" stroke-width="1.5" />' +
-              '<text x="' + it.x.toFixed(1) + '" y="' + it.y.toFixed(1) +
-              '" text-anchor="' + it.anchor +
-              '" dominant-baseline="alphabetic" fill="#1f2a33" font-size="' +
-              fontSize + '" font-family="IBM Plex Sans, sans-serif">' +
-              '<tspan font-weight="600">' + it.name + "</tspan>" +
-              '<tspan fill="#4b5563">' + it.rest + "</tspan>" +
-              "</text>"
-            );
-          })
-          .join("");
-      }
-
-      const center =
+      const center = [
         '<text x="' + cx + '" y="' + (cy - 6) +
-        '" text-anchor="middle" fill="#1f2a33" font-size="' + centerSize +
-        '" font-weight="700" font-family="IBM Plex Sans, sans-serif">' +
-        totalValue +
-        "</text>" +
-        '<text x="' + cx + '" y="' + (cy + (large ? 22 : 16)) +
-        '" text-anchor="middle" fill="#6b7785" font-size="' + (large ? 15 : 12) +
-        '" font-family="IBM Plex Sans, sans-serif">Total</text>';
+          '" text-anchor="middle" fill="#1f2a33" font-size="' + centerSize +
+          '" font-weight="700" font-family="IBM Plex Sans, sans-serif">' +
+          totalValue + "</text>",
+        '<text x="' + cx + '" y="' + (cy + (large ? 20 : 16)) +
+          '" text-anchor="middle" fill="#6b7785" font-size="' + (large ? 14 : 12) +
+          '" font-family="IBM Plex Sans, sans-serif">Total</text>',
+      ].join("");
+
+      // subtle divider between chart and legend
+      const divider =
+        '<line x1="' + (legendX - (large ? 28 : 18)) + '" y1="' + (large ? 36 : 28) +
+        '" x2="' + (legendX - (large ? 28 : 18)) + '" y2="' + (H - (large ? 36 : 28)) +
+        '" stroke="#e6ebf0" stroke-width="1" />';
 
       return (
         '<svg viewBox="0 0 ' + W + " " + H + '" aria-hidden="true">' +
         arcs.join("") +
-        drawLabels(left) +
-        drawLabels(right) +
         center +
+        divider +
+        legend +
         "</svg>"
       );
     }
