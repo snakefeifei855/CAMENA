@@ -355,11 +355,8 @@
     }
 
     function donutSVG(slices, totalValue, opts = {}) {
-      // Match Feishu donut exactly:
-      // - left / right columns by slice mid-angle
-      // - labels evenly readable (prefer anchor Y, nudge apart)
-      // - leader: diagonal from ring edge → horizontal underline
-      // - lines stay in outside gutter (never through ring / hole)
+      // Feishu style: largest slice on the LEFT; other labels in a right column;
+      // leader lines only travel in the outside gutter (never cross the ring).
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
       const W = large ? 920 : 660;
@@ -374,10 +371,13 @@
       const elbowR = r + stroke / 2;
       const pad = large ? 18 : 12;
       const minGap = large ? 20 : 17;
-      const gutter = large ? 22 : 16;
+      const gutter = large ? 26 : 18;
       const gapAngle = slices.length > 1 ? 0.01 : 0;
 
-      let angle = -Math.PI / 2;
+      // Put the first (largest) slice centered on the LEFT — same as Feishu reference
+      const firstSweep = (slices[0].value / total) * Math.PI * 2;
+      let angle = Math.PI - firstSweep / 2;
+
       const arcs = [];
       const left = [];
       const right = [];
@@ -430,7 +430,6 @@
 
         const top = pad + fontSize;
         const bottom = H - pad;
-        // Column edge (Feishu): right labels left-aligned; left labels right-aligned
         const xCol = isRight ? cx + elbowR + gutter : cx - elbowR - gutter;
 
         items.forEach(function (it) {
@@ -440,31 +439,23 @@
           it.isRight = isRight;
         });
 
-        // Push apart like Feishu — keep near slice Y, don't force full-height comb
         for (var pass = 0; pass < 8; pass++) {
           var i;
           for (i = 1; i < n; i++) {
-            if (items[i].y < items[i - 1].y + minGap) {
-              items[i].y = items[i - 1].y + minGap;
-            }
+            if (items[i].y < items[i - 1].y + minGap) items[i].y = items[i - 1].y + minGap;
           }
           for (i = n - 2; i >= 0; i--) {
-            if (items[i].y > items[i + 1].y - minGap) {
-              items[i].y = items[i + 1].y - minGap;
-            }
+            if (items[i].y > items[i + 1].y - minGap) items[i].y = items[i + 1].y - minGap;
           }
         }
 
-        // If overflow, compress the block into the available band (still ordered)
         if (n > 1 && (items[0].y < top || items[n - 1].y > bottom)) {
           const gap = Math.min(minGap, (bottom - top) / (n - 1));
           const block = gap * (n - 1);
-          // Bias block toward the slices' average Y (Feishu fans near the cluster)
           var avg = 0;
           for (var k = 0; k < n; k++) avg += items[k].ey;
           avg /= n;
-          var y0 = avg - block / 2;
-          y0 = Math.max(top, Math.min(y0, bottom - block));
+          var y0 = Math.max(top, Math.min(avg - block / 2, bottom - block));
           for (var j = 0; j < n; j++) items[j].y = y0 + j * gap;
         } else {
           for (var t = 0; t < n; t++) {
@@ -476,38 +467,20 @@
       layoutSide(left, false);
       layoutSide(right, true);
 
-      function dist2(x, y) {
-        const dx = x - cx;
-        const dy = y - cy;
-        return dx * dx + dy * dy;
-      }
-
       function drawLabels(items) {
-        const minR2 = (elbowR + 1) * (elbowR + 1);
         return items
           .map(function (it) {
             const lineY = it.y + 3;
             const xJoin = it.x;
             const xEnd = it.isRight ? it.x + it.textW : it.x - it.textW;
-
-            // Feishu 2-segment: ring → label join → underline.
-            // If the straight diagonal would cut the ring, bend via outside gutter first.
-            var path;
-            const midX = (it.ex + xJoin) / 2;
-            const midY = (it.ey + lineY) / 2;
-            if (dist2(midX, midY) < minR2) {
-              const gutX = it.isRight ? cx + elbowR + gutter : cx - elbowR - gutter;
-              path =
-                "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
-                " L " + gutX.toFixed(1) + " " + it.ey.toFixed(1) +
-                " L " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
-                " L " + xEnd.toFixed(1) + " " + lineY.toFixed(1);
-            } else {
-              path =
-                "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
-                " L " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
-                " L " + xEnd.toFixed(1) + " " + lineY.toFixed(1);
-            }
+            // Outside-only elbow (Feishu-safe):
+            // ring → horizontal out to column X at anchor Y → vertical to label → underline
+            // All of this stays in the side gutter; never chords through the donut.
+            const path =
+              "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
+              " L " + xJoin.toFixed(1) + " " + it.ey.toFixed(1) +
+              " L " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
+              " L " + xEnd.toFixed(1) + " " + lineY.toFixed(1);
 
             return (
               '<path d="' + path + '" fill="none" stroke="#94a3b8" stroke-width="1.15" />' +
