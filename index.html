@@ -435,8 +435,8 @@
 
         // Feishu: right column left-aligned; left column right-aligned
         const xCol = isRight
-          ? cx + elbowR + (large ? 28 : 20)
-          : cx - elbowR - (large ? 28 : 20);
+          ? cx + elbowR + (large ? 36 : 26)
+          : cx - elbowR - (large ? 36 : 26);
 
         items.forEach(function (it, idx) {
           it.y = n === 1 ? Math.max(top, Math.min(bottom, it.ey)) : y0 + idx * gap;
@@ -456,17 +456,18 @@
             var xJoin;
             var xEnd;
             if (it.isRight) {
-              // left-aligned column: join at text start, underline to the right
               xJoin = it.x;
               xEnd = it.x + it.textW;
             } else {
-              // right-aligned column: join at text end (near pie), underline to the left
               xJoin = it.x;
               xEnd = it.x - it.textW;
             }
-            // Feishu: ring → join (near pie side of underline) → underline
+            // Orthogonal elbow OUTSIDE the ring only:
+            // ring → horizontal out to column → vertical to label → underline
+            // Never chords through the donut.
             const path =
               "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
+              " L " + xJoin.toFixed(1) + " " + it.ey.toFixed(1) +
               " L " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
               " L " + xEnd.toFixed(1) + " " + lineY.toFixed(1);
 
