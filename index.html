@@ -357,22 +357,20 @@
     function donutSVG(slices, totalValue, opts = {}) {
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
-      const W = large ? 1000 : 720;
-      const H = large ? 640 : 440;
+      const W = large ? 980 : 700;
+      const H = large ? 600 : 400;
       const cx = W / 2;
       const cy = H / 2;
-      const r = large ? 118 : 78;
-      const stroke = large ? 40 : 28;
+      const r = large ? 125 : 80;
+      const stroke = large ? 42 : 30;
       const fontSize = large ? 14 : 12;
       const centerSize = large ? 48 : 32;
       const elbowR = r + stroke / 2;
-      const labelR0 = elbowR + (large ? 42 : 30);
-      const minLabelDist = large ? 24 : 18;
-      const pad = 18;
 
       let angle = -Math.PI / 2;
       const arcs = [];
-      const items = [];
+      const left = [];
+      const right = [];
 
       slices.forEach((s, i) => {
         const sweep = (s.value / total) * Math.PI * 2;
@@ -392,110 +390,91 @@
           );
         }
 
-        items.push({
+        const item = {
           i,
           mid,
           name: s.name,
           rest: `: ${s.value} (${fmtPct(s.pct)})`,
+          text: `${s.name}: ${s.value} (${fmtPct(s.pct)})`,
           ex: cx + elbowR * Math.cos(mid),
           ey: cy + elbowR * Math.sin(mid),
-          lx: cx + labelR0 * Math.cos(mid),
-          ly: cy + labelR0 * Math.sin(mid),
-        });
+        };
+        (Math.cos(mid) >= 0 ? right : left).push(item);
         angle = a2;
       });
 
-      // Keep angular order; scatter labels around the ring (not one column)
-      items.sort((a, b) => a.mid - b.mid);
+      /**
+       * Feishu-style callouts (strict):
+       * - labels in a vertical column on that side
+       * - path: ring anchor → horizontal to gutter → diagonal to label row → underline under country name
+       * - same top→bottom order for anchors & labels => diagonals never cross
+       */
+      function layoutSide(items, side) {
+        items.sort((a, b) => a.ey - b.ey || a.mid - b.mid);
+        const n = items.length;
+        if (!n) return "";
 
-      // Push overlapping labels apart along the ring (order preserved => lines won't cross)
-      for (let iter = 0; iter < 30; iter++) {
-        let moved = false;
-        for (let i = 1; i < items.length; i++) {
-          const a = items[i - 1];
-          const b = items[i];
-          const dx = b.lx - a.lx;
-          const dy = b.ly - a.ly;
-          const d = Math.hypot(dx, dy) || 0.01;
-          if (d < minLabelDist) {
-            const push = (minLabelDist - d) / 2 + 0.8;
-            const ux = dx / d;
-            const uy = dy / d;
-            a.lx -= ux * push;
-            a.ly -= uy * push;
-            b.lx += ux * push;
-            b.ly += uy * push;
-            // ease outward a bit to reduce pile-ups
-            for (const p of [a, b]) {
-              const vx = p.lx - cx;
-              const vy = p.ly - cy;
-              const rr = Math.hypot(vx, vy) || 1;
-              const target = Math.max(rr, labelR0);
-              p.lx = cx + (vx / rr) * (target + 0.6);
-              p.ly = cy + (vy / rr) * (target + 0.6);
-            }
-            moved = true;
+        const top = large ? 36 : 28;
+        const bottom = H - (large ? 36 : 28);
+        const minGap = large ? 20 : 16;
+        const span = Math.max(bottom - top, minGap);
+        const gap = n === 1 ? 0 : Math.max(minGap, span / (n - 1));
+        const block = gap * Math.max(n - 1, 0);
+        let y0 = (H - block) / 2;
+        y0 = Math.max(top, Math.min(y0, bottom - block));
+
+        const isRight = side === "right";
+        const xLabel = isRight ? W - (large ? 18 : 14) : (large ? 18 : 14);
+        // Gutter just outside the ring on this side
+        const xGutter = isRight
+          ? cx + elbowR + (large ? 18 : 12)
+          : cx - elbowR - (large ? 18 : 12);
+        const anchor = isRight ? "end" : "start";
+        const nameFactor = large ? 8.4 : 7.3;
+
+        return items.map((it, idx) => {
+          const nameY = y0 + idx * gap;
+          const lineY = nameY + 3;
+          const nameWidth = Math.max(40, it.name.length * nameFactor);
+
+          let nameStart;
+          let nameEnd;
+          if (isRight) {
+            // whole label is right-aligned at xLabel; country name is the left part of the string visually...
+            // Approximate: full text ends at xLabel; name is at the beginning of the string (left side of glyph run)
+            const fullW = Math.max(80, it.text.length * (large ? 7.6 : 6.6));
+            const nameLeft = xLabel - fullW;
+            nameStart = nameLeft;
+            nameEnd = nameLeft + nameWidth;
+          } else {
+            nameStart = xLabel;
+            nameEnd = xLabel + nameWidth;
           }
-        }
-        // also compare first/last if they wrap near top
-        if (items.length > 2) {
-          const a = items[items.length - 1];
-          const b = items[0];
-          const dx = b.lx - a.lx;
-          const dy = b.ly - a.ly;
-          const d = Math.hypot(dx, dy) || 0.01;
-          if (d < minLabelDist) {
-            const push = (minLabelDist - d) / 2 + 0.8;
-            a.lx -= (dx / d) * push;
-            a.ly -= (dy / d) * push;
-            b.lx += (dx / d) * push;
-            b.ly += (dy / d) * push;
-            moved = true;
-          }
-        }
-        if (!moved) break;
+
+          // Strict Feishu polyline:
+          // 1) horizontal out from ring to gutter (same Y as anchor)
+          // 2) diagonal from gutter@anchorY to near label@labelY
+          // 3) horizontal underline under country name
+          const approachX = isRight ? nameStart - 2 : nameStart - 2;
+          const path = [
+            `M ${it.ex.toFixed(1)} ${it.ey.toFixed(1)}`,
+            `L ${xGutter.toFixed(1)} ${it.ey.toFixed(1)}`,
+            `L ${approachX.toFixed(1)} ${lineY.toFixed(1)}`,
+            `L ${nameEnd.toFixed(1)} ${lineY.toFixed(1)}`,
+          ].join(" ");
+
+          return `
+            <path d="${path}" fill="none" stroke="#94a3b8" stroke-width="1.1" />
+            <circle cx="${it.ex.toFixed(1)}" cy="${it.ey.toFixed(1)}" r="${large ? 3 : 2.4}" fill="${colorFor(it.i)}" stroke="#ffffff" stroke-width="1.5" />
+            <text x="${xLabel}" y="${nameY.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="alphabetic"
+              fill="#1f2a33" font-size="${fontSize}" font-family="IBM Plex Sans, sans-serif">
+              <tspan font-weight="600">${it.name}</tspan><tspan fill="#4b5563">${it.rest}</tspan>
+            </text>
+          `;
+        }).join("");
       }
 
-      // Keep labels inside the canvas
-      for (const p of items) {
-        p.lx = Math.max(pad + 70, Math.min(W - pad - 70, p.lx));
-        p.ly = Math.max(pad + 10, Math.min(H - pad - 10, p.ly));
-      }
-
-      const nameFactor = large ? 8.2 : 7.2;
-      const labelNodes = items.map((it) => {
-        const cos = Math.cos(it.mid);
-        const anchor = cos > 0.25 ? "start" : cos < -0.25 ? "end" : "middle";
-        const nameWidth = Math.max(36, it.name.length * nameFactor);
-
-        let nameStart;
-        let nameEnd;
-        if (anchor === "start") {
-          nameStart = it.lx;
-          nameEnd = it.lx + nameWidth;
-        } else if (anchor === "end") {
-          nameEnd = it.lx;
-          nameStart = it.lx - nameWidth;
-        } else {
-          nameStart = it.lx - nameWidth / 2;
-          nameEnd = it.lx + nameWidth / 2;
-        }
-
-        // Elbow near label, short callout — stays local to each slice
-        const mx = it.ex + (it.lx - it.ex) * 0.55;
-        const my = it.ey + (it.ly - it.ey) * 0.55;
-        const lineY = it.ly + 4;
-        const path = `M ${it.ex.toFixed(1)} ${it.ey.toFixed(1)} L ${mx.toFixed(1)} ${my.toFixed(1)} L ${nameStart.toFixed(1)} ${lineY.toFixed(1)} L ${nameEnd.toFixed(1)} ${lineY.toFixed(1)}`;
-
-        return `
-          <path d="${path}" fill="none" stroke="#94a3b8" stroke-width="1" />
-          <circle cx="${it.ex.toFixed(1)}" cy="${it.ey.toFixed(1)}" r="${large ? 3 : 2.4}" fill="${colorFor(it.i)}" stroke="#ffffff" stroke-width="1.5" />
-          <text x="${it.lx.toFixed(1)}" y="${it.ly.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="alphabetic"
-            fill="#1f2a33" font-size="${fontSize}" font-family="IBM Plex Sans, sans-serif">
-            <tspan font-weight="600">${it.name}</tspan><tspan fill="#4b5563">${it.rest}</tspan>
-          </text>
-        `;
-      }).join("");
+      const labelNodes = layoutSide(left, "left") + layoutSide(right, "right");
 
       const center = `
         <text x="${cx}" y="${cy - 8}" text-anchor="middle" fill="#1f2a33" font-size="${centerSize}" font-weight="700"
