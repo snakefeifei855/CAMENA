@@ -461,11 +461,10 @@
       function spillRow(rowName, maxN) {
         const row = zones[rowName];
         row.sort(function (a, b) {
-          return a.mid - b.mid;
+          return a.ex - b.ex;
         });
         while (row.length > maxN) {
-          // alternate: leftmost -> left, rightmost -> right
-          if (row.length % 2 === 0) {
+          if (zones.left.length <= zones.right.length) {
             const m = row.shift();
             m.zone = "left";
             zones.left.push(m);
@@ -483,15 +482,15 @@
         const xText = isRight ? W - pad : pad;
         const yMin = pad + fontSize;
         const yMax = H - pad;
+        // Sort by anchor Y so leader lines never cross
         side.sort(function (a, b) {
-          return a.mid - b.mid;
+          return a.ey - b.ey;
         });
         side.forEach(function (it) {
           it.x = xText;
-          it.y = Math.max(yMin, Math.min(yMax, it.prefY));
+          it.y = Math.max(yMin, Math.min(yMax, it.ey));
           it.anchor = isRight ? "end" : "start";
         });
-        // Nudge to remove overlaps, then if still overflowing, equal-space the side
         for (var pass = 0; pass < 6; pass++) {
           var i;
           for (i = 1; i < side.length; i++) {
@@ -521,12 +520,13 @@
         const yText = isTop ? pad + fontSize : H - pad;
         const xMin = pad;
         const xMax = W - pad;
+        // Sort by anchor X so leader lines never cross
         side.sort(function (a, b) {
-          return a.mid - b.mid;
+          return a.ex - b.ex;
         });
         side.forEach(function (it) {
           it.y = yText;
-          it.x = it.prefX;
+          it.x = it.ex;
           it.anchor = "middle";
         });
 
@@ -550,13 +550,11 @@
           }
         }
 
-        // If the row cannot fit without overlap, distribute evenly across full width
         var totalNeed = 0;
         for (var t = 0; t < side.length; t++) totalNeed += side[t].textW;
         totalNeed += Math.max(0, side.length - 1) * 12;
 
         if (side.length > 0 && (totalNeed > xMax - xMin || !gapsOk())) {
-          // place centers so boxes sit edge-to-edge with 12px gaps inside [xMin,xMax]
           var cursor = xMin;
           var scale = 1;
           if (totalNeed > xMax - xMin) scale = (xMax - xMin) / totalNeed;
@@ -565,17 +563,14 @@
             side[n].x = cursor + w / 2;
             cursor += w + 12 * scale;
           }
-        } else {
-          // Center the packed block in the available width
-          if (side.length > 0) {
-            const leftEdge = side[0].x - side[0].textW / 2;
-            const rightEdge = side[side.length - 1].x + side[side.length - 1].textW / 2;
-            const shift = (xMin + xMax) / 2 - (leftEdge + rightEdge) / 2;
-            for (var m = 0; m < side.length; m++) {
-              side[m].x += shift;
-              const half = side[m].textW / 2;
-              side[m].x = Math.max(xMin + half, Math.min(xMax - half, side[m].x));
-            }
+        } else if (side.length > 0) {
+          const leftEdge = side[0].x - side[0].textW / 2;
+          const rightEdge = side[side.length - 1].x + side[side.length - 1].textW / 2;
+          const shift = (xMin + xMax) / 2 - (leftEdge + rightEdge) / 2;
+          for (var m = 0; m < side.length; m++) {
+            side[m].x += shift;
+            const half = side[m].textW / 2;
+            side[m].x = Math.max(xMin + half, Math.min(xMax - half, side[m].x));
           }
         }
       }
