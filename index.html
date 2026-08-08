@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:maps-v1 -->
+  <!-- build:map-ppt-583x547 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CAMENA · H1 2026 Dashboard</title>
@@ -198,7 +198,7 @@
     .modal-panel {
       position: relative;
       z-index: 1;
-      width: min(980px, 100%);
+      width: min(640px, 100%);
       max-height: calc(100vh - 48px);
       overflow: auto;
       background: #fff;
@@ -206,6 +206,10 @@
       border: 1px solid var(--line);
       box-shadow: 0 12px 40px rgba(15, 23, 32, 0.18);
       padding: 14px 16px 12px;
+    }
+
+    .modal-panel.map-mode {
+      width: min(620px, 100%);
     }
 
     .modal-head {
@@ -323,16 +327,56 @@
       padding-bottom: 10px;
     }
 
+    .map-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+
+    .map-action-btn {
+      height: 32px;
+      border: 1px solid var(--line);
+      background: #f8fafb;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #334155;
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 0 10px;
+      white-space: nowrap;
+    }
+    .map-action-btn:hover {
+      background: #eef6f4;
+      border-color: #b7d5cf;
+      color: var(--teal);
+    }
+
+    /* PPT slot size from user screenshot: 583 × 547 */
     .map-wrap {
-      height: 460px;
-      width: 100%;
+      width: 583px;
+      height: 547px;
+      max-width: 100%;
+      margin: 0 auto;
       border-radius: 8px;
       background: #f3f6f8;
       overflow: hidden;
+      position: relative;
     }
 
     .modal-chart .map-wrap {
-      height: min(62vh, 560px);
+      width: 583px;
+      height: 547px;
+      max-width: 100%;
+    }
+
+    @media (max-width: 640px) {
+      .map-wrap,
+      .modal-chart .map-wrap {
+        width: 100%;
+        height: calc((100vw - 56px) * 547 / 583);
+      }
     }
 
     .map-legend {
@@ -576,6 +620,10 @@
     let geoCountriesPromise = null;
     let activeMapInstances = [];
     let currentModalKind = "chart";
+    let modalMapInstance = null;
+    // Exact PPT paste size (user screenshot)
+    const MAP_PPT_W = 583;
+    const MAP_PPT_H = 547;
 
     function loadGeoCountries() {
       if (!geoCountriesPromise) {
@@ -756,21 +804,50 @@
           " projects · " +
           fmtNum(capTotal, "GW") +
           " GW</h2>" +
+          '<div class="map-card-actions">' +
+          '<button type="button" class="map-action-btn" data-act="copy">Copy</button>' +
+          '<button type="button" class="map-action-btn" data-act="download">Download PNG</button>' +
           '<button type="button" class="expand-btn" title="Enlarge map" aria-label="Enlarge map">' +
           EXPAND_ICON +
           "</button>" +
-          "</div>" +
+          "</div></div>" +
           '<div class="map-wrap" id="' +
           mapId +
           '"></div>';
         article.querySelector(".expand-btn").addEventListener("click", function () {
           openModal(m);
         });
+        article.querySelector('[data-act="copy"]').addEventListener("click", function () {
+          exportMapById(mapId, m.title, "copy");
+        });
+        article.querySelector('[data-act="download"]').addEventListener("click", function () {
+          exportMapById(mapId, m.title, "download");
+        });
         root.appendChild(article);
         renderLeafletMap(mapId, m, false).then(function (map) {
           if (map) activeMapInstances.push(map);
         });
       });
+    }
+
+    async function exportMapById(mapId, title, mode) {
+      const mapEl = document.getElementById(mapId);
+      if (!mapEl) return;
+      try {
+        const blob = await mapToPngBlob(mapEl, title);
+        if (mode === "copy" && navigator.clipboard && window.ClipboardItem) {
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+          alert("Copied " + MAP_PPT_W + "×" + MAP_PPT_H + " PNG. Paste into PowerPoint.");
+        } else {
+          const safe = String(title || "map")
+            .replace(/[^\w\-]+/g, "_")
+            .replace(/_+/g, "_")
+            .slice(0, 60);
+          downloadBlob(blob, "CAMENA_" + safe + ".png");
+        }
+      } catch (err) {
+        alert("Export failed: " + (err && err.message ? err.message : err));
+      }
     }
 
     function donutSVG(slices, totalValue, opts = {}) {
@@ -895,6 +972,7 @@
     const kpiRootCap = document.getElementById("kpi-row-cap");
     const chartRootCap = document.getElementById("chart-row-cap");
     const modal = document.getElementById("chart-modal");
+    const modalPanel = modal ? modal.querySelector(".modal-panel") : null;
     const modalTitle = document.getElementById("modal-title");
     const modalChart = document.getElementById("modal-chart");
     const copyBtn = document.getElementById("copy-chart-btn");
@@ -966,30 +1044,59 @@
         throw new Error("html2canvas not loaded");
       }
       const title = String(titleText || "").trim();
+      // Capture at higher res then fit into exact PPT pixels
       const canvasMap = await html2canvas(mapEl, {
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
         scale: 2,
+        width: mapEl.clientWidth || MAP_PPT_W,
+        height: mapEl.clientHeight || MAP_PPT_H,
       });
-      const scale = 2;
-      const padX = 14 * scale;
-      const padTop = (title ? 10 : 6) * scale;
-      const titleH = (title ? 38 : 0) * scale;
-      const padBottom = 8 * scale;
+
       const out = document.createElement("canvas");
-      out.width = canvasMap.width + padX * 2;
-      out.height = canvasMap.height + titleH + padTop + padBottom;
+      out.width = MAP_PPT_W;
+      out.height = MAP_PPT_H;
       const ctx = out.getContext("2d");
       ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, out.width, out.height);
+      ctx.fillRect(0, 0, MAP_PPT_W, MAP_PPT_H);
+
+      const padX = 10;
+      const padTop = title ? 8 : 6;
+      const titleBand = title ? 32 : 0;
+      const padBottom = 6;
+      const boxW = MAP_PPT_W - padX * 2;
+      const boxH = MAP_PPT_H - padTop - titleBand - padBottom;
+      const boxY = padTop + titleBand;
+
       if (title) {
         ctx.fillStyle = "#1f2a33";
-        ctx.font = "600 " + 20 * scale + "px 'IBM Plex Sans', sans-serif";
+        ctx.font = "600 14px 'IBM Plex Sans', sans-serif";
         ctx.textBaseline = "top";
-        ctx.fillText(title, padX, padTop);
+        // Truncate long titles to fit PPT width
+        let t = title;
+        while (ctx.measureText(t).width > boxW && t.length > 8) {
+          t = t.slice(0, -2);
+        }
+        if (t !== title) t = t.slice(0, -1) + "…";
+        ctx.fillText(t, padX, padTop);
       }
-      ctx.drawImage(canvasMap, padX, padTop + titleH);
+
+      // Cover-fit map into remaining box while keeping aspect, then clip to PPT frame
+      const srcW = canvasMap.width;
+      const srcH = canvasMap.height;
+      const scale = Math.max(boxW / srcW, boxH / srcH);
+      const drawW = srcW * scale;
+      const drawH = srcH * scale;
+      const dx = padX + (boxW - drawW) / 2;
+      const dy = boxY + (boxH - drawH) / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(padX, boxY, boxW, boxH);
+      ctx.clip();
+      ctx.drawImage(canvasMap, dx, dy, drawW, drawH);
+      ctx.restore();
+
       return new Promise(function (resolve, reject) {
         out.toBlob(function (blob) {
           if (!blob) reject(new Error("Failed to create PNG"));
@@ -1018,7 +1125,7 @@
           await navigator.clipboard.write([
             new ClipboardItem({ "image/png": blob }),
           ]);
-          setToast("Copied to clipboard. Paste into Word / Feishu / PowerPoint.");
+          setToast("Copied to clipboard (" + MAP_PPT_W + "×" + MAP_PPT_H + "). Paste into PowerPoint.");
         } else {
           downloadBlob(blob, fileNameForCurrent());
           setToast("Clipboard image not supported here. PNG downloaded instead.");
@@ -1070,10 +1177,30 @@
     }
 
     function openModal(metric) {
-      const d = DATA[metric.key];
-      currentMetricKey = metric.key;
+      currentMetricKey = metric.key || metric.countKey || metric.title;
       modalTitle.textContent = metric.title;
       setToast("");
+      if (modalMapInstance) {
+        try { modalMapInstance.remove(); } catch (e) {}
+        modalMapInstance = null;
+      }
+
+      if (metric.kind === "map") {
+        currentModalKind = "map";
+        if (modalPanel) modalPanel.classList.add("map-mode");
+        modalChart.innerHTML = '<div class="map-wrap" id="modal-map-el"></div>';
+        modal.classList.add("open");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("modal-open");
+        renderLeafletMap("modal-map-el", metric, true).then(function (map) {
+          modalMapInstance = map;
+        });
+        return;
+      }
+
+      currentModalKind = "chart";
+      if (modalPanel) modalPanel.classList.remove("map-mode");
+      const d = DATA[metric.key];
       modalChart.innerHTML = donutSVG(d.slices, d.total, {
         large: true,
         unit: metric.unit || "count",
@@ -1120,6 +1247,7 @@
 
     function closeModal() {
       modal.classList.remove("open");
+      if (modalPanel) modalPanel.classList.remove("map-mode");
       modal.setAttribute("aria-hidden", "true");
       document.body.classList.remove("modal-open");
       if (modalMapInstance) {
@@ -1143,6 +1271,7 @@
 
     renderMetrics(METRICS_COUNT, kpiRoot, chartRoot);
     renderMetrics(METRICS_CAPACITY, kpiRootCap, chartRootCap);
+    renderMaps();
   </script>
 </body>
 </html>
