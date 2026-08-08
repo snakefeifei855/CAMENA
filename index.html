@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:map-ppt-583x547 -->
+  <!-- build:map-callouts -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CAMENA · H1 2026 Dashboard</title>
@@ -400,28 +400,23 @@
     }
 
     .country-label {
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
+      background: rgba(255, 255, 255, 0.94) !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 4px !important;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
       color: #0f172a;
       font-weight: 700;
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.15;
       text-align: center;
-      text-shadow:
-        0 0 3px #fff,
-        0 0 3px #fff,
-        1px 0 0 #fff,
-        -1px 0 0 #fff,
-        0 1px 0 #fff,
-        0 -1px 0 #fff;
+      padding: 2px 5px !important;
       white-space: nowrap;
       pointer-events: none;
     }
     .country-label .gw {
       display: block;
       font-weight: 600;
-      font-size: 11px;
+      font-size: 10px;
       color: #334155;
     }
 
@@ -604,7 +599,8 @@
       TUNISIA: ["Tunisia"],
     };
 
-    const MAP_NUDGES = {
+    // Preferred leader-line anchors (lat, lng) when polygon centroid is awkward
+    const MAP_ANCHORS = {
       TURKIYE: [39.0, 35.2],
       SAUDI: [24.0, 44.5],
       EGYPT: [26.5, 30.0],
@@ -612,6 +608,15 @@
       MOROCCO: [31.8, -6.5],
       PAKISTAN: [30.2, 69.5],
       UZBEKISTAN: [41.5, 64.5],
+      GEORGIA: [42.3, 43.5],
+      KAZAKHISTAN: [48.0, 67.0],
+      Azerbajian: [40.3, 47.5],
+      Kyrgyzstan: [41.2, 74.5],
+      TAJIKISTAN: [38.8, 71.0],
+      TUNISIA: [34.0, 9.5],
+      OMAN: [22.5, 57.0],
+      "SRI LANKA": [7.8, 80.7],
+      Mongolia: [46.8, 103.0],
     };
 
     const GEO_URL =
@@ -682,6 +687,151 @@
       });
     }
 
+    function rectsOverlap(a, b, pad) {
+      pad = pad || 0;
+      return !(
+        a.x + a.w + pad <= b.x ||
+        b.x + b.w + pad <= a.x ||
+        a.y + a.h + pad <= b.y ||
+        b.y + b.h + pad <= a.y
+      );
+    }
+
+    function layoutCalloutLabels(map, labelLayer, items) {
+      labelLayer.clearLayers();
+      if (!items.length) return;
+
+      const size = map.getSize();
+      const labelW = 58;
+      const labelH = 30;
+      const margin = 6;
+      const gap = 5;
+      // Reserve bottom-right for legend so callouts don't cover it
+      const reserved = {
+        x: size.x - 132,
+        y: size.y - 150,
+        w: 126,
+        h: 144,
+      };
+      const dirs = [];
+      for (let i = 0; i < 24; i++) {
+        const ang = (i / 24) * Math.PI * 2 - Math.PI / 2;
+        dirs.push([Math.cos(ang), Math.sin(ang)]);
+      }
+      const distances = [36, 48, 62, 78, 96, 116, 140, 168, 200, 240];
+
+      const ordered = items.slice().sort(function (a, b) {
+        return b.row.count - a.row.count || String(a.row.name).localeCompare(String(b.row.name));
+      });
+
+      const placed = [reserved];
+
+      ordered.forEach(function (item) {
+        const anchorPt = map.latLngToContainerPoint(item.anchor);
+        let chosen = null;
+
+        for (let di = 0; di < distances.length && !chosen; di++) {
+          const dist = distances[di];
+          for (let ri = 0; ri < dirs.length; ri++) {
+            const cx = anchorPt.x + dirs[ri][0] * dist;
+            const cy = anchorPt.y + dirs[ri][1] * dist;
+            const rect = {
+              x: cx - labelW / 2,
+              y: cy - labelH / 2,
+              w: labelW,
+              h: labelH,
+            };
+            if (
+              rect.x < margin ||
+              rect.y < margin ||
+              rect.x + rect.w > size.x - margin ||
+              rect.y + rect.h > size.y - margin
+            ) {
+              continue;
+            }
+            let hit = false;
+            for (let p = 0; p < placed.length; p++) {
+              if (rectsOverlap(rect, placed[p], gap)) {
+                hit = true;
+                break;
+              }
+            }
+            if (!hit) {
+              chosen = { cx: cx, cy: cy, rect: rect };
+              break;
+            }
+          }
+        }
+
+        if (!chosen) {
+          let y = margin + placed.length * (labelH + gap);
+          if (y + labelH > size.y - margin) y = margin;
+          chosen = {
+            cx: size.x - margin - labelW / 2,
+            cy: y + labelH / 2,
+            rect: {
+              x: size.x - margin - labelW,
+              y: y,
+              w: labelW,
+              h: labelH,
+            },
+          };
+          let guard = 0;
+          while (guard++ < 40) {
+            let hit = false;
+            for (let p = 0; p < placed.length; p++) {
+              if (rectsOverlap(chosen.rect, placed[p], gap)) {
+                hit = true;
+                break;
+              }
+            }
+            if (!hit) break;
+            chosen.rect.y += labelH + gap;
+            chosen.cy = chosen.rect.y + labelH / 2;
+            if (chosen.rect.y + labelH > size.y - margin) {
+              chosen.rect.y = margin;
+              chosen.cx -= labelW + gap;
+              chosen.rect.x = chosen.cx - labelW / 2;
+              chosen.cy = chosen.rect.y + labelH / 2;
+            }
+          }
+        }
+
+        placed.push(chosen.rect);
+        const labelLatLng = map.containerPointToLatLng([chosen.cx, chosen.cy]);
+
+        L.polyline([item.anchor, labelLatLng], {
+          color: "#475569",
+          weight: 1.1,
+          opacity: 0.9,
+          interactive: false,
+        }).addTo(labelLayer);
+
+        L.circleMarker(item.anchor, {
+          radius: 2.4,
+          color: "#0f766e",
+          fillColor: "#0f766e",
+          fillOpacity: 1,
+          weight: 0,
+          interactive: false,
+        }).addTo(labelLayer);
+
+        L.marker(labelLatLng, {
+          interactive: false,
+          icon: L.divIcon({
+            className: "country-label",
+            html:
+              item.row.count +
+              '<span class="gw">' +
+              Number(item.row.gw).toFixed(1) +
+              " GW</span>",
+            iconSize: [labelW, labelH],
+            iconAnchor: [labelW / 2, labelH / 2],
+          }),
+        }).addTo(labelLayer);
+      });
+    }
+
     function renderLeafletMap(containerId, metric, isLarge) {
       const el = document.getElementById(containerId);
       if (!el || typeof L === "undefined") return Promise.resolve(null);
@@ -702,8 +852,11 @@
         maxZoom: 8,
       }).addTo(map);
 
+      const labelLayer = L.layerGroup().addTo(map);
+
       return loadGeoCountries()
         .then(function (geo) {
+          const labelItems = [];
           const layers = L.geoJSON(geo, {
             style: function (feature) {
               const row = matchRow(featureAdminName(feature.properties), byKey);
@@ -726,28 +879,25 @@
               );
 
               const center = layer.getBounds().getCenter();
-              const nudge = MAP_NUDGES[row.name];
-              const latlng = nudge ? L.latLng(nudge[0], nudge[1]) : center;
-              L.marker(latlng, {
-                interactive: false,
-                icon: L.divIcon({
-                  className: "country-label",
-                  html: row.count + '<span class="gw">' + Number(row.gw).toFixed(1) + " GW</span>",
-                  iconSize: [64, 30],
-                  iconAnchor: [32, 15],
-                }),
-              }).addTo(map);
+              const nudge = MAP_ANCHORS[row.name];
+              const anchor = nudge ? L.latLng(nudge[0], nudge[1]) : center;
+              labelItems.push({ row: row, anchor: anchor, layer: layer });
             },
           }).addTo(map);
 
-          const active = [];
-          layers.eachLayer(function (layer) {
-            const row = matchRow(featureAdminName(layer.feature.properties), byKey);
-            if (row) active.push(layer);
-          });
+          const active = labelItems.map(function (it) { return it.layer; });
           if (active.length) {
-            map.fitBounds(L.featureGroup(active).getBounds().pad(0.08));
+            map.fitBounds(L.featureGroup(active).getBounds().pad(0.12));
           }
+
+          function refreshLabels() {
+            layoutCalloutLabels(map, labelLayer, labelItems);
+          }
+
+          map.whenReady(function () {
+            setTimeout(refreshLabels, 40);
+          });
+          map.on("zoomend moveend", refreshLabels);
 
           const legend = L.control({ position: "bottomright" });
           legend.onAdd = function () {
@@ -764,13 +914,16 @@
                 "</div>";
             }
             html +=
-              '<div style="margin-top:6px;color:#6b7785">Label: count<br>then GW</div>';
+              '<div style="margin-top:6px;color:#6b7785">Callouts: count<br>then GW</div>';
             div.innerHTML = html;
             return div;
           };
           legend.addTo(map);
 
-          setTimeout(function () { map.invalidateSize(); }, 50);
+          setTimeout(function () {
+            map.invalidateSize();
+            refreshLabels();
+          }, 80);
           return map;
         })
         .catch(function (err) {
