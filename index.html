@@ -187,11 +187,10 @@
       const H = 360;
       const cx = W / 2;
       const cy = H / 2;
-      const r = 78;
-      const stroke = 28;
-      // Anchor clearly outside the ring outer edge
-      const ringOuter = r + stroke / 2;
-      const elbowR = ringOuter + 28;
+      const r = 82;
+      const stroke = 30;
+      // Anchor sits on the outer edge of the donut ring (not outside)
+      const elbowR = r + stroke / 2;
 
       let angle = -Math.PI / 2;
       const arcs = [];
