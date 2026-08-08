@@ -378,30 +378,30 @@
     }
 
     function donutSVG(slices, totalValue, opts = {}) {
-      // Callouts around the ring in 4 zones (top / right / bottom / left).
-      // Preferred position follows slice angle; only local collision nudging.
+      // Labels fan around the ring in 4 sides. Position follows slice angle;
+      // crowded top/bottom rows spill to left/right so text never stacks.
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
-      const W = large ? 1000 : 780;
-      const H = large ? 660 : 480;
+      const W = large ? 1040 : 800;
+      const H = large ? 680 : 500;
       const cx = W / 2;
-      const cy = H / 2 + (large ? 6 : 4);
-      const r = large ? 118 : 82;
+      const cy = H / 2;
+      const r = large ? 115 : 80;
       const stroke = large ? 40 : 28;
       const fontSize = large ? 13 : 11;
       const centerSize = large ? 46 : 32;
-      const charW = large ? 7.1 : 6.1;
+      const charW = large ? 7.0 : 6.0;
       const elbowR = r + stroke / 2;
-      const minGap = large ? 20 : 17;
-      const pad = large ? 14 : 10;
+      const minGap = large ? 22 : 18;
+      const pad = large ? 16 : 12;
 
       function zoneOf(mid) {
-        // 0° = right, 90° = bottom, 180° = left, 270° = top (SVG y-down)
+        // Wider bottom/top bands so labels actually use all four sides
         let deg = (mid * 180) / Math.PI;
         deg = ((deg % 360) + 360) % 360;
-        if (deg >= 315 || deg < 45) return "right";
-        if (deg >= 45 && deg < 135) return "bottom";
-        if (deg >= 135 && deg < 225) return "left";
+        if (deg >= 325 || deg < 50) return "right";
+        if (deg >= 50 && deg < 155) return "bottom";
+        if (deg >= 155 && deg < 230) return "left";
         return "top";
       }
 
@@ -409,7 +409,7 @@
       const arcs = [];
       const items = [];
 
-      slices.forEach((s, i) => {
+      slices.forEach(function (s, i) {
         const sweep = (s.value / total) * Math.PI * 2;
         const a2 = angle + sweep;
         const mid = angle + sweep / 2;
@@ -434,279 +434,196 @@
 
         const name = displayName(s.name);
         const rest = ": " + s.value + " (" + fmtPct(s.pct) + ")";
-        const label = name + rest;
-        const textW = Math.max(64, label.length * charW);
-        const zone = zoneOf(mid);
-
         items.push({
           i: i,
           mid: mid,
-          zone: zone,
+          zone: zoneOf(mid),
           name: name,
           rest: rest,
-          textW: textW,
+          textW: Math.max(70, (name + rest).length * charW),
           ex: cx + elbowR * Math.cos(mid),
           ey: cy + elbowR * Math.sin(mid),
-          // preferred along ray, then snapped to a side gutter
-          prefX: cx + (elbowR + (large ? 36 : 26)) * Math.cos(mid),
-          prefY: cy + (elbowR + (large ? 36 : 26)) * Math.sin(mid),
+          prefX: cx + (elbowR + (large ? 40 : 28)) * Math.cos(mid),
+          prefY: cy + (elbowR + (large ? 40 : 28)) * Math.sin(mid),
           x: 0,
           y: 0,
+          anchor: "start",
         });
         angle = a2;
       });
 
       const zones = { top: [], right: [], bottom: [], left: [] };
-      items.forEach((it) => zones[it.zone].push(it));
+      items.forEach(function (it) {
+        zones[it.zone].push(it);
+      });
 
-      // Keep top/bottom rows readable: spill extras toward left/right
-      function rebalance(row, side, maxN) {
+      // Spill crowded top/bottom into left/right (use empty side space)
+      function spillRow(rowName, maxN) {
+        const row = zones[rowName];
         row.sort(function (a, b) {
           return a.mid - b.mid;
         });
         while (row.length > maxN) {
-          const move = side === "left" ? row.shift() : row.pop();
-          move.zone = side;
-          zones[side].push(move);
-        }
-      }
-      rebalance(zones.top, "left", large ? 6 : 5);
-      rebalance(zones.bottom, "right", large ? 6 : 5);
-
-      function nudge1D(arr, key, gap) {
-        arr.sort(function (a, b) {
-          return a[key] - b[key];
-        });
-        for (var pass = 0; pass < 5; pass++) {
-          var i;
-          for (i = 1; i < arr.length; i++) {
-            if (arr[i][key] < arr[i - 1][key] + gap) {
-              arr[i][key] = arr[i - 1][key] + gap;
-            }
-          }
-          for (i = arr.length - 2; i >= 0; i--) {
-            if (arr[i][key] > arr[i + 1][key] - gap) {
-              arr[i][key] = arr[i + 1][key] - gap;
-            }
+          // alternate: leftmost -> left, rightmost -> right
+          if (row.length % 2 === 0) {
+            const m = row.shift();
+            m.zone = "left";
+            zones.left.push(m);
+          } else {
+            const m = row.pop();
+            m.zone = "right";
+            zones.right.push(m);
           }
         }
       }
+      spillRow("top", large ? 5 : 4);
+      spillRow("bottom", large ? 5 : 4);
 
-      // RIGHT: vertical stack on right gutter
-      (function () {
-        const side = zones.right;
-        const xText = W - pad;
-        side.forEach(function (it) {
-          it.y = Math.max(pad + fontSize, Math.min(H - pad, it.prefY));
-          it.x = xText;
-          it.anchor = "end";
-        });
-        nudge1D(side, "y", minGap);
-        side.forEach(function (it) {
-          it.y = Math.max(pad + fontSize, Math.min(H - pad, it.y));
-        });
-      })();
-
-      // LEFT: vertical stack on left gutter
-      (function () {
-        const side = zones.left;
-        const xText = pad;
-        side.forEach(function (it) {
-          it.y = Math.max(pad + fontSize, Math.min(H - pad, it.prefY));
-          it.x = xText;
-          it.anchor = "start";
-        });
-        nudge1D(side, "y", minGap);
-        side.forEach(function (it) {
-          it.y = Math.max(pad + fontSize, Math.min(H - pad, it.y));
-        });
-      })();
-
-      // TOP: horizontal row above the ring
-      (function () {
-        const side = zones.top;
-        const yText = pad + fontSize;
-        side.forEach(function (it) {
-          it.x = it.prefX;
-          it.y = yText;
-          it.anchor = "middle";
-        });
-        // gap by half text widths so labels don't overlap
+      function layoutVertical(side, isRight) {
+        const xText = isRight ? W - pad : pad;
+        const yMin = pad + fontSize;
+        const yMax = H - pad;
         side.sort(function (a, b) {
-          return a.x - b.x;
+          return a.mid - b.mid;
         });
-        for (var pass = 0; pass < 5; pass++) {
+        side.forEach(function (it) {
+          it.x = xText;
+          it.y = Math.max(yMin, Math.min(yMax, it.prefY));
+          it.anchor = isRight ? "end" : "start";
+        });
+        // Nudge to remove overlaps, then if still overflowing, equal-space the side
+        for (var pass = 0; pass < 6; pass++) {
           var i;
           for (i = 1; i < side.length; i++) {
-            const need = (side[i - 1].textW + side[i].textW) / 2 + 10;
-            if (side[i].x < side[i - 1].x + need) {
-              side[i].x = side[i - 1].x + need;
-            }
+            if (side[i].y < side[i - 1].y + minGap) side[i].y = side[i - 1].y + minGap;
           }
           for (i = side.length - 2; i >= 0; i--) {
-            const need2 = (side[i].textW + side[i + 1].textW) / 2 + 10;
-            if (side[i].x > side[i + 1].x - need2) {
-              side[i].x = side[i + 1].x - need2;
+            if (side[i].y > side[i + 1].y - minGap) side[i].y = side[i + 1].y - minGap;
+          }
+        }
+        if (side.length > 1) {
+          const need = (side.length - 1) * minGap;
+          if (side[0].y < yMin || side[side.length - 1].y > yMax || need > yMax - yMin) {
+            const gap = Math.min(minGap, (yMax - yMin) / Math.max(side.length - 1, 1));
+            const block = gap * (side.length - 1);
+            let start = (yMin + yMax - block) / 2;
+            start = Math.max(yMin, Math.min(start, yMax - block));
+            for (var k = 0; k < side.length; k++) side[k].y = start + k * gap;
+          } else {
+            for (var j = 0; j < side.length; j++) {
+              side[j].y = Math.max(yMin, Math.min(yMax, side[j].y));
             }
           }
         }
-        side.forEach(function (it) {
-          const half = it.textW / 2;
-          it.x = Math.max(pad + half, Math.min(W - pad - half, it.x));
-        });
-      })();
+      }
 
-      // BOTTOM: horizontal row below the ring
-      (function () {
-        const side = zones.bottom;
-        const yText = H - pad;
+      function layoutHorizontal(side, isTop) {
+        const yText = isTop ? pad + fontSize : H - pad;
+        const xMin = pad;
+        const xMax = W - pad;
+        side.sort(function (a, b) {
+          return a.mid - b.mid;
+        });
         side.forEach(function (it) {
-          it.x = it.prefX;
           it.y = yText;
+          it.x = it.prefX;
           it.anchor = "middle";
         });
-        side.sort(function (a, b) {
-          return a.x - b.x;
-        });
-        for (var pass = 0; pass < 5; pass++) {
+
+        function gapsOk() {
+          for (var i = 1; i < side.length; i++) {
+            const need = (side[i - 1].textW + side[i].textW) / 2 + 12;
+            if (side[i].x < side[i - 1].x + need) return false;
+          }
+          return true;
+        }
+
+        for (var pass = 0; pass < 8; pass++) {
           var i;
           for (i = 1; i < side.length; i++) {
-            const need = (side[i - 1].textW + side[i].textW) / 2 + 10;
-            if (side[i].x < side[i - 1].x + need) {
-              side[i].x = side[i - 1].x + need;
-            }
+            const need = (side[i - 1].textW + side[i].textW) / 2 + 12;
+            if (side[i].x < side[i - 1].x + need) side[i].x = side[i - 1].x + need;
           }
           for (i = side.length - 2; i >= 0; i--) {
-            const need2 = (side[i].textW + side[i + 1].textW) / 2 + 10;
-            if (side[i].x > side[i + 1].x - need2) {
-              side[i].x = side[i + 1].x - need2;
+            const need2 = (side[i].textW + side[i + 1].textW) / 2 + 12;
+            if (side[i].x > side[i + 1].x - need2) side[i].x = side[i + 1].x - need2;
+          }
+        }
+
+        // If the row cannot fit without overlap, distribute evenly across full width
+        var totalNeed = 0;
+        for (var t = 0; t < side.length; t++) totalNeed += side[t].textW;
+        totalNeed += Math.max(0, side.length - 1) * 12;
+
+        if (side.length > 0 && (totalNeed > xMax - xMin || !gapsOk())) {
+          // place centers so boxes sit edge-to-edge with 12px gaps inside [xMin,xMax]
+          var cursor = xMin;
+          var scale = 1;
+          if (totalNeed > xMax - xMin) scale = (xMax - xMin) / totalNeed;
+          for (var n = 0; n < side.length; n++) {
+            const w = side[n].textW * scale;
+            side[n].x = cursor + w / 2;
+            cursor += w + 12 * scale;
+          }
+        } else {
+          // Center the packed block in the available width
+          if (side.length > 0) {
+            const leftEdge = side[0].x - side[0].textW / 2;
+            const rightEdge = side[side.length - 1].x + side[side.length - 1].textW / 2;
+            const shift = (xMin + xMax) / 2 - (leftEdge + rightEdge) / 2;
+            for (var m = 0; m < side.length; m++) {
+              side[m].x += shift;
+              const half = side[m].textW / 2;
+              side[m].x = Math.max(xMin + half, Math.min(xMax - half, side[m].x));
             }
           }
         }
-        side.forEach(function (it) {
-          const half = it.textW / 2;
-          it.x = Math.max(pad + half, Math.min(W - pad - half, it.x));
-        });
-      })();
+      }
+
+      layoutVertical(zones.left, false);
+      layoutVertical(zones.right, true);
+      layoutHorizontal(zones.top, true);
+      layoutHorizontal(zones.bottom, false);
 
       const labelNodes = items
         .map(function (it) {
           const lineY = it.y + 3;
-          let xNear;
-          let xFar;
-          let path;
+          var path;
 
           if (it.zone === "left") {
-            // pie is to the right of label → join at right edge of underline
-            xNear = it.x + it.textW;
-            xFar = it.x;
+            const join = it.x + it.textW;
+            const end = it.x;
             path =
-              "M " +
-              it.ex.toFixed(1) +
-              " " +
-              it.ey.toFixed(1) +
-              " L " +
-              xNear.toFixed(1) +
-              " " +
-              lineY.toFixed(1) +
-              " L " +
-              xFar.toFixed(1) +
-              " " +
-              lineY.toFixed(1);
+              "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
+              " L " + join.toFixed(1) + " " + lineY.toFixed(1) +
+              " L " + end.toFixed(1) + " " + lineY.toFixed(1);
           } else if (it.zone === "right") {
-            // pie is to the left of label → join at left edge of underline
-            xNear = it.x - it.textW;
-            xFar = it.x;
+            const join = it.x - it.textW;
+            const end = it.x;
             path =
-              "M " +
-              it.ex.toFixed(1) +
-              " " +
-              it.ey.toFixed(1) +
-              " L " +
-              xNear.toFixed(1) +
-              " " +
-              lineY.toFixed(1) +
-              " L " +
-              xFar.toFixed(1) +
-              " " +
-              lineY.toFixed(1);
-          } else if (it.zone === "top") {
-            xNear = it.x - it.textW / 2;
-            xFar = it.x + it.textW / 2;
-            // ring -> down to underline center-ish then underline
-            const joinX = it.x;
-            path =
-              "M " +
-              it.ex.toFixed(1) +
-              " " +
-              it.ey.toFixed(1) +
-              " L " +
-              joinX.toFixed(1) +
-              " " +
-              lineY.toFixed(1) +
-              " L " +
-              xFar.toFixed(1) +
-              " " +
-              lineY.toFixed(1);
-            // also draw left half of underline without going through text wrong way:
-            path +=
-              " M " +
-              joinX.toFixed(1) +
-              " " +
-              lineY.toFixed(1) +
-              " L " +
-              xNear.toFixed(1) +
-              " " +
-              lineY.toFixed(1);
+              "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
+              " L " + join.toFixed(1) + " " + lineY.toFixed(1) +
+              " L " + end.toFixed(1) + " " + lineY.toFixed(1);
           } else {
-            // bottom
-            xNear = it.x - it.textW / 2;
-            xFar = it.x + it.textW / 2;
-            const joinX = it.x;
+            const left = it.x - it.textW / 2;
+            const right = it.x + it.textW / 2;
             path =
-              "M " +
-              it.ex.toFixed(1) +
-              " " +
-              it.ey.toFixed(1) +
-              " L " +
-              joinX.toFixed(1) +
-              " " +
-              lineY.toFixed(1) +
-              " L " +
-              xFar.toFixed(1) +
-              " " +
-              lineY.toFixed(1);
-            path +=
-              " M " +
-              joinX.toFixed(1) +
-              " " +
-              lineY.toFixed(1) +
-              " L " +
-              xNear.toFixed(1) +
-              " " +
-              lineY.toFixed(1);
+              "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
+              " L " + it.x.toFixed(1) + " " + lineY.toFixed(1) +
+              " L " + right.toFixed(1) + " " + lineY.toFixed(1) +
+              " M " + it.x.toFixed(1) + " " + lineY.toFixed(1) +
+              " L " + left.toFixed(1) + " " + lineY.toFixed(1);
           }
 
           return [
             '<path d="' + path + '" fill="none" stroke="#94a3b8" stroke-width="1.1" />',
-            '<circle cx="' +
-              it.ex.toFixed(1) +
-              '" cy="' +
-              it.ey.toFixed(1) +
-              '" r="' +
-              (large ? 3 : 2.4) +
-              '" fill="#ffffff" stroke="' +
-              colorFor(it.i) +
+            '<circle cx="' + it.ex.toFixed(1) + '" cy="' + it.ey.toFixed(1) + '" r="' +
+              (large ? 3 : 2.4) + '" fill="#ffffff" stroke="' + colorFor(it.i) +
               '" stroke-width="1.6" />',
-            '<text x="' +
-              it.x.toFixed(1) +
-              '" y="' +
-              it.y.toFixed(1) +
-              '" text-anchor="' +
-              it.anchor +
+            '<text x="' + it.x.toFixed(1) + '" y="' + it.y.toFixed(1) +
+              '" text-anchor="' + it.anchor +
               '" dominant-baseline="alphabetic" fill="#1f2a33" font-size="' +
-              fontSize +
-              '" font-family="IBM Plex Sans, sans-serif">',
+              fontSize + '" font-family="IBM Plex Sans, sans-serif">',
             '<tspan font-weight="600">' + it.name + "</tspan>",
             '<tspan fill="#4b5563">' + it.rest + "</tspan>",
             "</text>",
@@ -714,31 +631,18 @@
         })
         .join("");
 
-      const center = [
-        '<text x="' +
-          cx +
-          '" y="' +
-          (cy - 6) +
-          '" text-anchor="middle" fill="#1f2a33" font-size="' +
-          centerSize +
-          '" font-weight="700" font-family="IBM Plex Sans, sans-serif">' +
-          totalValue +
-          "</text>",
-        '<text x="' +
-          cx +
-          '" y="' +
-          (cy + (large ? 20 : 15)) +
-          '" text-anchor="middle" fill="#6b7785" font-size="' +
-          (large ? 14 : 12) +
-          '" font-family="IBM Plex Sans, sans-serif">Total</text>',
-      ].join("");
+      const center =
+        '<text x="' + cx + '" y="' + (cy - 6) +
+        '" text-anchor="middle" fill="#1f2a33" font-size="' + centerSize +
+        '" font-weight="700" font-family="IBM Plex Sans, sans-serif">' +
+        totalValue +
+        "</text>" +
+        '<text x="' + cx + '" y="' + (cy + (large ? 20 : 15)) +
+        '" text-anchor="middle" fill="#6b7785" font-size="' + (large ? 14 : 12) +
+        '" font-family="IBM Plex Sans, sans-serif">Total</text>';
 
       return (
-        '<svg viewBox="0 0 ' +
-        W +
-        " " +
-        H +
-        '" aria-hidden="true">' +
+        '<svg viewBox="0 0 ' + W + " " + H + '" aria-hidden="true">' +
         arcs.join("") +
         labelNodes +
         center +
