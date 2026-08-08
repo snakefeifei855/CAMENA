@@ -503,7 +503,7 @@
       copyToast.textContent = msg || "";
     }
 
-    function svgToPngBlob(svgEl) {
+    function svgToPngBlob(svgEl, titleText) {
       return new Promise((resolve, reject) => {
         const clone = svgEl.cloneNode(true);
         const vb = (clone.getAttribute("viewBox") || "0 0 920 560").split(/\s+/).map(Number);
@@ -513,19 +513,35 @@
         clone.setAttribute("width", String(W));
         clone.setAttribute("height", String(H));
 
+        const title = String(titleText || "").trim();
+        const titleH = title ? 56 : 0;
+        const padX = 24;
+        const padTop = title ? 20 : 0;
+        const padBottom = 16;
+
         const xml = new XMLSerializer().serializeToString(clone);
         const svgUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
         const img = new Image();
         img.onload = () => {
           const scale = 2;
           const canvas = document.createElement("canvas");
-          canvas.width = W * scale;
-          canvas.height = H * scale;
+          const outW = W + padX * 2;
+          const outH = H + titleH + padTop + padBottom;
+          canvas.width = outW * scale;
+          canvas.height = outH * scale;
           const ctx = canvas.getContext("2d");
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.setTransform(scale, 0, 0, scale, 0, 0);
-          ctx.drawImage(img, 0, 0);
+
+          if (title) {
+            ctx.fillStyle = "#1f2a33";
+            ctx.font = "600 22px 'IBM Plex Sans', sans-serif";
+            ctx.textBaseline = "top";
+            ctx.fillText(title, padX, padTop);
+          }
+
+          ctx.drawImage(img, padX, padTop + titleH);
           canvas.toBlob((blob) => {
             if (!blob) reject(new Error("Failed to create PNG"));
             else resolve(blob);
@@ -536,13 +552,17 @@
       });
     }
 
+    function currentChartTitle() {
+      return modalTitle.textContent || currentMetricKey || "CAMENA chart";
+    }
+
     async function copyChartImage() {
       const svg = modalChart.querySelector("svg");
       if (!svg) return;
       copyBtn.disabled = true;
       setToast("Copying…");
       try {
-        const blob = await svgToPngBlob(svg);
+        const blob = await svgToPngBlob(svg, currentChartTitle());
         if (navigator.clipboard && window.ClipboardItem) {
           await navigator.clipboard.write([
             new ClipboardItem({ "image/png": blob }),
@@ -555,7 +575,7 @@
         }
       } catch (err) {
         try {
-          const blob = await svgToPngBlob(svg);
+          const blob = await svgToPngBlob(svg, currentChartTitle());
           downloadBlob(blob, fileNameForCurrent());
           setToast("Copy failed. PNG downloaded instead.");
         } catch (e2) {
@@ -596,7 +616,7 @@
       downloadBtn.disabled = true;
       setToast("Preparing PNG…");
       try {
-        const blob = await svgToPngBlob(svg);
+        const blob = await svgToPngBlob(svg, currentChartTitle());
         downloadBlob(blob, fileNameForCurrent());
         setToast("PNG downloaded.");
       } catch (err) {
