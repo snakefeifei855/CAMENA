@@ -390,7 +390,7 @@
       const stroke = large ? 40 : 28;
       const fontSize = large ? 13 : 11;
       const centerSize = large ? 46 : 32;
-      const charW = large ? 7.0 : 6.0;
+      const charW = large ? 7.6 : 6.6;
       const elbowR = r + stroke / 2;
       const minGap = large ? 22 : 18;
       const pad = large ? 16 : 12;
@@ -476,8 +476,8 @@
           }
         }
       }
-      spillRow("top", large ? 5 : 4);
-      spillRow("bottom", large ? 5 : 4);
+      spillRow("top", large ? 4 : 3);
+      spillRow("bottom", large ? 4 : 3);
 
       function layoutVertical(side, isRight) {
         const xText = isRight ? W - pad : pad;
