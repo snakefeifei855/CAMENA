@@ -408,24 +408,46 @@
       });
 
       function layoutSide(items, side) {
-        items.sort((a, b) => a.ey - b.ey);
+        // Sort top->bottom by anchor Y; keep this order so leaders cannot cross
+        items.sort((a, b) => a.ey - b.ey || a.mid - b.mid);
         const n = items.length;
         if (!n) return [];
         const top = large ? 36 : 28;
         const bottom = H - (large ? 36 : 28);
-        const gap = Math.min(gapMax, (bottom - top) / Math.max(n, 1));
-        const block = gap * (n - 1);
-        let y0 = (H - block) / 2;
-        y0 = Math.max(top, Math.min(y0, bottom - block));
+        const minGap = large ? 20 : 16;
+
+        // Start at natural anchor Y, then separate overlaps while preserving order
+        const ys = items.map((it) => it.ey);
+        for (let i = 1; i < n; i++) {
+          if (ys[i] < ys[i - 1] + minGap) ys[i] = ys[i - 1] + minGap;
+        }
+        if (ys[n - 1] > bottom) {
+          const overflow = ys[n - 1] - bottom;
+          for (let i = 0; i < n; i++) ys[i] -= overflow;
+        }
+        if (ys[0] < top) {
+          const shift = top - ys[0];
+          for (let i = 0; i < n; i++) ys[i] += shift;
+        }
+        for (let i = n - 2; i >= 0; i--) {
+          if (ys[i] > ys[i + 1] - minGap) ys[i] = ys[i + 1] - minGap;
+        }
+        if (ys[0] < top) {
+          ys[0] = top;
+          for (let i = 1; i < n; i++) {
+            if (ys[i] < ys[i - 1] + minGap) ys[i] = ys[i - 1] + minGap;
+          }
+        }
 
         const xLabel = side === "right" ? W - labelPad : labelPad;
-        const xElbow2 = side === "right" ? W - elbowX : elbowX;
+        // Elbow column outside the ring, closer to labels
+        const xElbow2 = side === "right" ? Math.min(W - 160, cx + r + stroke + 40) : Math.max(160, cx - r - stroke - 40);
         const anchor = side === "right" ? "end" : "start";
         const nameFactor = large ? 8.6 : 7.5;
         const restFactor = large ? 7.4 : 6.6;
 
         return items.map((it, idx) => {
-          const nameY = y0 + idx * gap;
+          const nameY = ys[idx];
           const lineY = nameY + 3;
           const nameWidth = Math.max(40, it.name.length * nameFactor);
           const restWidth = Math.max(48, it.rest.length * restFactor);
@@ -440,7 +462,11 @@
             nameEnd = xLabel + nameWidth;
           }
 
-          const path = `M ${it.ex.toFixed(1)} ${it.ey.toFixed(1)} L ${xElbow2} ${lineY.toFixed(1)} L ${nameStart.toFixed(1)} ${lineY.toFixed(1)}`;
+          // Horizontal stub from anchor, then to label row — order preserved => no crossings
+          const stubX = side === "right"
+            ? Math.min(it.ex + 14, xElbow2)
+            : Math.max(it.ex - 14, xElbow2);
+          const path = `M ${it.ex.toFixed(1)} ${it.ey.toFixed(1)} L ${stubX.toFixed(1)} ${it.ey.toFixed(1)} L ${xElbow2} ${lineY.toFixed(1)} L ${nameStart.toFixed(1)} ${lineY.toFixed(1)}`;
           return `
             <path d="${path}" fill="none" stroke="#94a3b8" stroke-width="1" />
             <line x1="${nameStart.toFixed(1)}" y1="${lineY.toFixed(1)}" x2="${nameEnd.toFixed(1)}" y2="${lineY.toFixed(1)}" stroke="#94a3b8" stroke-width="1" />
