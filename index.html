@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:modal-export-tight -->
+  <!-- build:maps-v1 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CAMENA · H1 2026 Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     :root {
       --bg: #eef1f4;
@@ -309,6 +310,77 @@
       margin-left: 4px;
     }
 
+
+    .grid-maps {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .card.map {
+      min-height: 0;
+      padding-top: 12px;
+      padding-bottom: 10px;
+    }
+
+    .map-wrap {
+      height: 460px;
+      width: 100%;
+      border-radius: 8px;
+      background: #f3f6f8;
+      overflow: hidden;
+    }
+
+    .modal-chart .map-wrap {
+      height: min(62vh, 560px);
+    }
+
+    .map-legend {
+      background: #fff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--text);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .map-legend .title { font-weight: 600; margin-bottom: 6px; }
+    .map-legend i {
+      display: inline-block;
+      width: 14px;
+      height: 12px;
+      margin-right: 6px;
+      border-radius: 2px;
+      vertical-align: middle;
+    }
+
+    .country-label {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      color: #0f172a;
+      font-weight: 700;
+      font-size: 12px;
+      line-height: 1.15;
+      text-align: center;
+      text-shadow:
+        0 0 3px #fff,
+        0 0 3px #fff,
+        1px 0 0 #fff,
+        -1px 0 0 #fff,
+        0 1px 0 #fff,
+        0 -1px 0 #fff;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .country-label .gw {
+      display: block;
+      font-weight: 600;
+      font-size: 11px;
+      color: #334155;
+    }
+
     body.modal-open { overflow: hidden; }
   </style>
 </head>
@@ -329,12 +401,16 @@
     <section class="grid-kpi" id="kpi-row-cap"></section>
     <section class="grid-charts" id="chart-row-cap"></section>
 
+    <h2 class="section-label">By country map</h2>
+    <section class="grid-maps" id="map-row"></section>
+
     <p class="footnote">
       Definitions — Analysis: Last Process Update in 2026-01-01~07-31.
       Newly received: among Analysis, First Assigned also in Jan–Jul 2026.
       Old revision: among Analysis, First Assigned before Jan 2026 (or outside this window).
       Contracts signed / Award notice: Internal Process tags.
       Capacity charts sum the Capacity field converted to GW (÷1000); projects with blank Capacity contribute 0 GW.
+      Maps: fill color by project count; labels show count (top) and GW (bottom); country name on hover.
     </p>
   </div>
 
@@ -354,6 +430,8 @@
     </div>
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script>
     const DATA = {"analysis":{"total":191,"slices":[{"name":"TURKIYE","value":102,"pct":53.4},{"name":"PAKISTAN","value":25,"pct":13.09},{"name":"UZBEKISTAN","value":11,"pct":5.76},{"name":"GEORGIA","value":9,"pct":4.71},{"name":"MOROCCO","value":7,"pct":3.66},{"name":"SAUDI","value":7,"pct":3.66},{"name":"UKRAINE","value":7,"pct":3.66},{"name":"EGYPT","value":6,"pct":3.14},{"name":"KAZAKHISTAN","value":6,"pct":3.14},{"name":"SRI LANKA","value":3,"pct":1.57},{"name":"Azerbajian","value":2,"pct":1.05},{"name":"Kyrgyzstan","value":2,"pct":1.05},{"name":"Mongolia","value":1,"pct":0.52},{"name":"OMAN","value":1,"pct":0.52},{"name":"TAJIKISTAN","value":1,"pct":0.52},{"name":"TUNISIA","value":1,"pct":0.52}]},"new2026":{"total":95,"slices":[{"name":"TURKIYE","value":57,"pct":60.0},{"name":"PAKISTAN","value":14,"pct":14.74},{"name":"UKRAINE","value":6,"pct":6.32},{"name":"EGYPT","value":4,"pct":4.21},{"name":"UZBEKISTAN","value":4,"pct":4.21},{"name":"Kyrgyzstan","value":2,"pct":2.11},{"name":"MOROCCO","value":2,"pct":2.11},{"name":"SAUDI","value":2,"pct":2.11},{"name":"Azerbajian","value":1,"pct":1.05},{"name":"GEORGIA","value":1,"pct":1.05},{"name":"KAZAKHISTAN","value":1,"pct":1.05},{"name":"TAJIKISTAN","value":1,"pct":1.05}]},"oldRevision":{"total":96,"slices":[{"name":"TURKIYE","value":45,"pct":46.88},{"name":"PAKISTAN","value":11,"pct":11.46},{"name":"GEORGIA","value":8,"pct":8.33},{"name":"UZBEKISTAN","value":7,"pct":7.29},{"name":"KAZAKHISTAN","value":5,"pct":5.21},{"name":"MOROCCO","value":5,"pct":5.21},{"name":"SAUDI","value":5,"pct":5.21},{"name":"SRI LANKA","value":3,"pct":3.12},{"name":"EGYPT","value":2,"pct":2.08},{"name":"Azerbajian","value":1,"pct":1.04},{"name":"Mongolia","value":1,"pct":1.04},{"name":"OMAN","value":1,"pct":1.04},{"name":"TUNISIA","value":1,"pct":1.04},{"name":"UKRAINE","value":1,"pct":1.04}]},"contracts":{"total":21,"slices":[{"name":"PAKISTAN","value":15,"pct":71.43},{"name":"TURKIYE","value":5,"pct":23.81},{"name":"GEORGIA","value":1,"pct":4.76}]},"award":{"total":12,"slices":[{"name":"TURKIYE","value":7,"pct":58.33},{"name":"PAKISTAN","value":2,"pct":16.67},{"name":"GEORGIA","value":1,"pct":8.33},{"name":"KAZAKHISTAN","value":1,"pct":8.33},{"name":"UZBEKISTAN","value":1,"pct":8.33}]},"analysisCap":{"total":37.1,"slices":[{"name":"SAUDI","value":8.5,"pct":22.79},{"name":"UZBEKISTAN","value":7.4,"pct":19.84},{"name":"TURKIYE","value":6.0,"pct":16.09},{"name":"EGYPT","value":5.2,"pct":13.94},{"name":"MOROCCO","value":4.5,"pct":12.06},{"name":"KAZAKHISTAN","value":2.6,"pct":6.97},{"name":"GEORGIA","value":0.7,"pct":1.88},{"name":"UKRAINE","value":0.4,"pct":1.07},{"name":"Kyrgyzstan","value":0.4,"pct":1.07},{"name":"OMAN","value":0.4,"pct":1.07},{"name":"PAKISTAN","value":0.4,"pct":1.07},{"name":"Azerbajian","value":0.2,"pct":0.54},{"name":"TAJIKISTAN","value":0.2,"pct":0.54},{"name":"SRI LANKA","value":0.2,"pct":0.54},{"name":"Mongolia","value":0.1,"pct":0.27},{"name":"TUNISIA","value":0.1,"pct":0.27}]},"new2026Cap":{"total":14.6,"slices":[{"name":"TURKIYE","value":3.8,"pct":25.85},{"name":"EGYPT","value":3.4,"pct":23.13},{"name":"UZBEKISTAN","value":2.8,"pct":19.05},{"name":"SAUDI","value":2.2,"pct":14.97},{"name":"MOROCCO","value":1.1,"pct":7.48},{"name":"UKRAINE","value":0.4,"pct":2.72},{"name":"Kyrgyzstan","value":0.4,"pct":2.72},{"name":"TAJIKISTAN","value":0.2,"pct":1.36},{"name":"KAZAKHISTAN","value":0.2,"pct":1.36},{"name":"PAKISTAN","value":0.1,"pct":0.68},{"name":"GEORGIA","value":0.1,"pct":0.68}]},"oldRevisionCap":{"total":22.5,"slices":[{"name":"SAUDI","value":6.3,"pct":28.0},{"name":"UZBEKISTAN","value":4.6,"pct":20.44},{"name":"MOROCCO","value":3.4,"pct":15.11},{"name":"KAZAKHISTAN","value":2.4,"pct":10.67},{"name":"TURKIYE","value":2.1,"pct":9.33},{"name":"EGYPT","value":1.8,"pct":8.0},{"name":"GEORGIA","value":0.6,"pct":2.67},{"name":"OMAN","value":0.4,"pct":1.78},{"name":"PAKISTAN","value":0.3,"pct":1.33},{"name":"Azerbajian","value":0.2,"pct":0.89},{"name":"SRI LANKA","value":0.2,"pct":0.89},{"name":"Mongolia","value":0.1,"pct":0.44},{"name":"TUNISIA","value":0.1,"pct":0.44}]},"contractsCap":{"total":0.4,"slices":[{"name":"TURKIYE","value":0.2,"pct":50.0},{"name":"PAKISTAN","value":0.1,"pct":25.0},{"name":"GEORGIA","value":0.1,"pct":25.0}]},"awardCap":{"total":2.1,"slices":[{"name":"UZBEKISTAN","value":1.5,"pct":71.43},{"name":"TURKIYE","value":0.3,"pct":14.29},{"name":"KAZAKHISTAN","value":0.2,"pct":9.52},{"name":"GEORGIA","value":0.1,"pct":4.76}]}};
 
@@ -371,6 +449,40 @@
       { key: "oldRevisionCap", title: "Installed capacity of old Projects with revision in H1 2026", unit: "GW" },
       { key: "contractsCap", title: "Installed capacity of contracts signed in H1 2026", unit: "GW" },
       { key: "awardCap", title: "Installed capacity of projects with winning bid notifications in H1 2026", unit: "GW" },
+    ];
+
+
+    const METRICS_MAP = [
+      {
+        kind: "map",
+        countKey: "analysis",
+        capKey: "analysisCap",
+        title: "Analysis projects by country in H1 2026",
+      },
+      {
+        kind: "map",
+        countKey: "new2026",
+        capKey: "new2026Cap",
+        title: "Newly received projects by country in H1 2026",
+      },
+      {
+        kind: "map",
+        countKey: "oldRevision",
+        capKey: "oldRevisionCap",
+        title: "Old revision projects by country in H1 2026",
+      },
+      {
+        kind: "map",
+        countKey: "contracts",
+        capKey: "contractsCap",
+        title: "Contracts signed by country in H1 2026",
+      },
+      {
+        kind: "map",
+        countKey: "award",
+        capKey: "awardCap",
+        title: "Winning bid notifications by country in H1 2026",
+      },
     ];
 
     const COLORS = [
@@ -426,6 +538,239 @@
         .filter(Boolean)
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(" ");
+    }
+
+
+    const GEO_NAME = {
+      TURKIYE: ["Turkey", "Türkiye", "Turkiye"],
+      PAKISTAN: ["Pakistan"],
+      UZBEKISTAN: ["Uzbekistan"],
+      GEORGIA: ["Georgia"],
+      MOROCCO: ["Morocco"],
+      SAUDI: ["Saudi Arabia"],
+      UKRAINE: ["Ukraine"],
+      EGYPT: ["Egypt"],
+      KAZAKHISTAN: ["Kazakhstan"],
+      "SRI LANKA": ["Sri Lanka"],
+      Azerbajian: ["Azerbaijan"],
+      Kyrgyzstan: ["Kyrgyzstan"],
+      Mongolia: ["Mongolia"],
+      OMAN: ["Oman"],
+      TAJIKISTAN: ["Tajikistan"],
+      TUNISIA: ["Tunisia"],
+    };
+
+    const MAP_NUDGES = {
+      TURKIYE: [39.0, 35.2],
+      SAUDI: [24.0, 44.5],
+      EGYPT: [26.5, 30.0],
+      UKRAINE: [49.0, 32.0],
+      MOROCCO: [31.8, -6.5],
+      PAKISTAN: [30.2, 69.5],
+      UZBEKISTAN: [41.5, 64.5],
+    };
+
+    const GEO_URL =
+      "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson";
+
+    let geoCountriesPromise = null;
+    let activeMapInstances = [];
+    let currentModalKind = "chart";
+
+    function loadGeoCountries() {
+      if (!geoCountriesPromise) {
+        geoCountriesPromise = fetch(GEO_URL).then(function (r) {
+          if (!r.ok) throw new Error("GeoJSON HTTP " + r.status);
+          return r.json();
+        });
+      }
+      return geoCountriesPromise;
+    }
+
+    function featureAdminName(props) {
+      return (props && (props.ADMIN || props.name || props.NAME || props.NAME_EN)) || "";
+    }
+
+    function mergeMetricRows(countKey, capKey) {
+      const countData = DATA[countKey] || { slices: [] };
+      const capData = DATA[capKey] || { slices: [] };
+      const capBy = {};
+      (capData.slices || []).forEach(function (s) {
+        capBy[s.name] = s.value;
+      });
+      return (countData.slices || []).map(function (s) {
+        return {
+          name: s.name,
+          count: s.value,
+          gw: capBy[s.name] != null ? Number(capBy[s.name]) : 0,
+        };
+      });
+    }
+
+    function matchRow(adminName, byKey) {
+      const n = String(adminName || "").toLowerCase();
+      for (const key of Object.keys(GEO_NAME)) {
+        const aliases = GEO_NAME[key];
+        if (aliases.some(function (a) { return a.toLowerCase() === n; })) {
+          return byKey[key] || null;
+        }
+      }
+      return null;
+    }
+
+    function choroplethColor(count, maxCount) {
+      if (!count || !maxCount) return "#e8eef2";
+      const t = count / maxCount;
+      if (t > 0.7) return "#0f766e";
+      if (t > 0.35) return "#14b8a6";
+      if (t > 0.15) return "#5eead4";
+      if (t > 0.05) return "#99f6e4";
+      return "#ccfbf1";
+    }
+
+    function destroyMaps(list) {
+      (list || []).forEach(function (m) {
+        try { m.remove(); } catch (e) {}
+      });
+    }
+
+    function renderLeafletMap(containerId, metric, isLarge) {
+      const el = document.getElementById(containerId);
+      if (!el || typeof L === "undefined") return Promise.resolve(null);
+
+      const rows = mergeMetricRows(metric.countKey, metric.capKey);
+      const byKey = {};
+      rows.forEach(function (r) { byKey[r.name] = r; });
+      const maxCount = Math.max.apply(null, rows.map(function (r) { return r.count; }).concat([1]));
+
+      const map = L.map(el, {
+        zoomControl: true,
+        scrollWheelZoom: !!isLarge,
+        attributionControl: true,
+      }).setView([32, 55], 3.2);
+
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
+        attribution: "&copy; OpenStreetMap, &copy; CARTO",
+        maxZoom: 8,
+      }).addTo(map);
+
+      return loadGeoCountries()
+        .then(function (geo) {
+          const layers = L.geoJSON(geo, {
+            style: function (feature) {
+              const row = matchRow(featureAdminName(feature.properties), byKey);
+              return {
+                fillColor: choroplethColor(row ? row.count : 0, maxCount),
+                weight: row ? 1 : 0.4,
+                color: row ? "#0b4f4a" : "#cbd5e1",
+                fillOpacity: row ? 0.85 : 0.12,
+              };
+            },
+            onEachFeature: function (feature, layer) {
+              const row = matchRow(featureAdminName(feature.properties), byKey);
+              if (!row) return;
+              const label = displayName(row.name);
+              layer.bindTooltip(
+                "<strong>" + label + "</strong><br>" +
+                  row.count + " projects<br>" +
+                  Number(row.gw).toFixed(1) + " GW",
+                { sticky: true }
+              );
+
+              const center = layer.getBounds().getCenter();
+              const nudge = MAP_NUDGES[row.name];
+              const latlng = nudge ? L.latLng(nudge[0], nudge[1]) : center;
+              L.marker(latlng, {
+                interactive: false,
+                icon: L.divIcon({
+                  className: "country-label",
+                  html: row.count + '<span class="gw">' + Number(row.gw).toFixed(1) + " GW</span>",
+                  iconSize: [64, 30],
+                  iconAnchor: [32, 15],
+                }),
+              }).addTo(map);
+            },
+          }).addTo(map);
+
+          const active = [];
+          layers.eachLayer(function (layer) {
+            const row = matchRow(featureAdminName(layer.feature.properties), byKey);
+            if (row) active.push(layer);
+          });
+          if (active.length) {
+            map.fitBounds(L.featureGroup(active).getBounds().pad(0.08));
+          }
+
+          const legend = L.control({ position: "bottomright" });
+          legend.onAdd = function () {
+            const div = L.DomUtil.create("div", "map-legend");
+            const grades = [1, 5, 15, 40, 100];
+            let html = '<div class="title">Projects (fill)</div>';
+            for (let i = 0; i < grades.length; i++) {
+              html +=
+                '<div><i style="background:' +
+                choroplethColor(grades[i], maxCount) +
+                '"></i>' +
+                grades[i] +
+                (grades[i + 1] ? "–" + (grades[i + 1] - 1) : "+") +
+                "</div>";
+            }
+            html +=
+              '<div style="margin-top:6px;color:#6b7785">Label: count<br>then GW</div>';
+            div.innerHTML = html;
+            return div;
+          };
+          legend.addTo(map);
+
+          setTimeout(function () { map.invalidateSize(); }, 50);
+          return map;
+        })
+        .catch(function (err) {
+          el.innerHTML =
+            '<p style="padding:18px;color:#b45309;font-size:0.9rem">Could not load map boundaries. Check network access to GitHub raw / CDN.<br>' +
+            String(err) +
+            "</p>";
+          return null;
+        });
+    }
+
+    function renderMaps() {
+      const root = document.getElementById("map-row");
+      if (!root) return;
+      destroyMaps(activeMapInstances);
+      activeMapInstances = [];
+      root.innerHTML = "";
+
+      METRICS_MAP.forEach(function (m, idx) {
+        const countTotal = (DATA[m.countKey] || {}).total;
+        const capTotal = (DATA[m.capKey] || {}).total;
+        const article = document.createElement("article");
+        article.className = "card map";
+        const mapId = "map-" + idx;
+        article.innerHTML =
+          '<div class="card-head">' +
+          '<h2 class="card-title">' +
+          m.title +
+          " · " +
+          fmtNum(countTotal) +
+          " projects · " +
+          fmtNum(capTotal, "GW") +
+          " GW</h2>" +
+          '<button type="button" class="expand-btn" title="Enlarge map" aria-label="Enlarge map">' +
+          EXPAND_ICON +
+          "</button>" +
+          "</div>" +
+          '<div class="map-wrap" id="' +
+          mapId +
+          '"></div>';
+        article.querySelector(".expand-btn").addEventListener("click", function () {
+          openModal(m);
+        });
+        root.appendChild(article);
+        renderLeafletMap(mapId, m, false).then(function (map) {
+          if (map) activeMapInstances.push(map);
+        });
+      });
     }
 
     function donutSVG(slices, totalValue, opts = {}) {
@@ -534,17 +879,10 @@
           '" font-family="IBM Plex Sans, sans-serif">' + centerLabel + "</text>",
       ].join("");
 
-      // subtle divider between chart and legend
-      const divider =
-        '<line x1="' + (legendX - (large ? 18 : 12)) + '" y1="' + (topPad + 4) +
-        '" x2="' + (legendX - (large ? 18 : 12)) + '" y2="' + (H - bottomPad - 4) +
-        '" stroke="#e6ebf0" stroke-width="1" />';
-
       return (
         '<svg viewBox="0 0 ' + W + " " + H + '" aria-hidden="true">' +
         arcs.join("") +
         center +
-        divider +
         legend +
         "</svg>"
       );
@@ -623,38 +961,78 @@
       return modalTitle.textContent || currentMetricKey || "CAMENA chart";
     }
 
-    async function copyChartImage() {
+    async function mapToPngBlob(mapEl, titleText) {
+      if (typeof html2canvas !== "function") {
+        throw new Error("html2canvas not loaded");
+      }
+      const title = String(titleText || "").trim();
+      const canvasMap = await html2canvas(mapEl, {
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        scale: 2,
+      });
+      const scale = 2;
+      const padX = 14 * scale;
+      const padTop = (title ? 10 : 6) * scale;
+      const titleH = (title ? 38 : 0) * scale;
+      const padBottom = 8 * scale;
+      const out = document.createElement("canvas");
+      out.width = canvasMap.width + padX * 2;
+      out.height = canvasMap.height + titleH + padTop + padBottom;
+      const ctx = out.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, out.width, out.height);
+      if (title) {
+        ctx.fillStyle = "#1f2a33";
+        ctx.font = "600 " + 20 * scale + "px 'IBM Plex Sans', sans-serif";
+        ctx.textBaseline = "top";
+        ctx.fillText(title, padX, padTop);
+      }
+      ctx.drawImage(canvasMap, padX, padTop + titleH);
+      return new Promise(function (resolve, reject) {
+        out.toBlob(function (blob) {
+          if (!blob) reject(new Error("Failed to create PNG"));
+          else resolve(blob);
+        }, "image/png");
+      });
+    }
+
+    async function exportModalImage() {
+      if (currentModalKind === "map") {
+        const mapEl = document.getElementById("modal-map-el");
+        if (!mapEl) throw new Error("Map not ready");
+        return mapToPngBlob(mapEl, currentChartTitle());
+      }
       const svg = modalChart.querySelector("svg");
-      if (!svg) return;
+      if (!svg) throw new Error("Chart not ready");
+      return svgToPngBlob(svg, currentChartTitle());
+    }
+
+    async function copyChartImage() {
       copyBtn.disabled = true;
       setToast("Copying…");
       try {
-        const blob = await svgToPngBlob(svg, currentChartTitle());
+        const blob = await exportModalImage();
         if (navigator.clipboard && window.ClipboardItem) {
           await navigator.clipboard.write([
             new ClipboardItem({ "image/png": blob }),
           ]);
           setToast("Copied to clipboard. Paste into Word / Feishu / PowerPoint.");
         } else {
-          // Fallback: download
           downloadBlob(blob, fileNameForCurrent());
           setToast("Clipboard image not supported here. PNG downloaded instead.");
         }
       } catch (err) {
         try {
-          const blob = await svgToPngBlob(svg, currentChartTitle());
+          const blob = await exportModalImage();
           downloadBlob(blob, fileNameForCurrent());
           setToast("Copy failed. PNG downloaded instead.");
         } catch (e2) {
-          setToast("Could not copy chart. Try Download PNG.");
+          setToast("Could not copy. Try Download PNG.");
         }
       } finally {
         copyBtn.disabled = false;
-        setTimeout(() => {
-          if (copyToast.textContent.startsWith("Copied") || copyToast.textContent.includes("downloaded")) {
-            /* keep message briefly */
-          }
-        }, 0);
       }
     }
 
@@ -678,12 +1056,10 @@
     }
 
     async function downloadChartImage() {
-      const svg = modalChart.querySelector("svg");
-      if (!svg) return;
       downloadBtn.disabled = true;
       setToast("Preparing PNG…");
       try {
-        const blob = await svgToPngBlob(svg, currentChartTitle());
+        const blob = await exportModalImage();
         downloadBlob(blob, fileNameForCurrent());
         setToast("PNG downloaded.");
       } catch (err) {
@@ -746,8 +1122,13 @@
       modal.classList.remove("open");
       modal.setAttribute("aria-hidden", "true");
       document.body.classList.remove("modal-open");
+      if (modalMapInstance) {
+        try { modalMapInstance.remove(); } catch (e) {}
+        modalMapInstance = null;
+      }
       modalChart.innerHTML = "";
       setToast("");
+      currentModalKind = "chart";
     }
 
     copyBtn.addEventListener("click", copyChartImage);
