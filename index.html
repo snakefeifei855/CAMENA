@@ -219,7 +219,41 @@
       letter-spacing: -0.02em;
       line-height: 1.35;
       padding-right: 8px;
+      flex: 1;
     }
+
+    .modal-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .modal-btn {
+      height: 34px;
+      border: 1px solid var(--line);
+      background: #f8fafb;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #334155;
+      font-family: inherit;
+      font-size: 0.86rem;
+      font-weight: 500;
+      padding: 0 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .modal-btn:hover { background: #eef6f4; border-color: #b7d5cf; color: var(--teal); }
+    .modal-btn.primary {
+      background: var(--teal);
+      border-color: var(--teal);
+      color: #fff;
+    }
+    .modal-btn.primary:hover { background: #0b5f59; border-color: #0b5f59; color: #fff; }
+    .modal-btn:disabled { opacity: 0.65; cursor: wait; }
 
     .modal-close {
       width: 34px;
@@ -231,9 +265,17 @@
       font-size: 1.2rem;
       line-height: 1;
       color: #334155;
+      padding: 0;
     }
 
     .modal-close:hover { background: #eef2f5; }
+
+    .copy-toast {
+      margin: 0 0 8px;
+      color: var(--teal);
+      font-size: 0.86rem;
+      min-height: 1.2em;
+    }
 
     .modal-chart {
       width: 100%;
@@ -276,8 +318,13 @@
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-head">
         <h3 id="modal-title"></h3>
-        <button type="button" class="modal-close" data-close="1" aria-label="Close">×</button>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn primary" id="copy-chart-btn">Copy chart</button>
+          <button type="button" class="modal-btn" id="download-chart-btn">Download PNG</button>
+          <button type="button" class="modal-close" data-close="1" aria-label="Close">×</button>
+        </div>
       </div>
+      <p class="copy-toast" id="copy-toast" aria-live="polite"></p>
       <div class="modal-chart" id="modal-chart"></div>
     </div>
   </div>
@@ -425,10 +472,123 @@
     const modal = document.getElementById("chart-modal");
     const modalTitle = document.getElementById("modal-title");
     const modalChart = document.getElementById("modal-chart");
+    const copyBtn = document.getElementById("copy-chart-btn");
+    const downloadBtn = document.getElementById("download-chart-btn");
+    const copyToast = document.getElementById("copy-toast");
+    let currentMetricKey = "";
+
+    function setToast(msg) {
+      copyToast.textContent = msg || "";
+    }
+
+    function svgToPngBlob(svgEl) {
+      return new Promise((resolve, reject) => {
+        const clone = svgEl.cloneNode(true);
+        const vb = (clone.getAttribute("viewBox") || "0 0 920 560").split(/\s+/).map(Number);
+        const W = vb[2] || 920;
+        const H = vb[3] || 560;
+        clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        clone.setAttribute("width", String(W));
+        clone.setAttribute("height", String(H));
+
+        const xml = new XMLSerializer().serializeToString(clone);
+        const svgUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+        const img = new Image();
+        img.onload = () => {
+          const scale = 2;
+          const canvas = document.createElement("canvas");
+          canvas.width = W * scale;
+          canvas.height = H * scale;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.setTransform(scale, 0, 0, scale, 0, 0);
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob((blob) => {
+            if (!blob) reject(new Error("Failed to create PNG"));
+            else resolve(blob);
+          }, "image/png");
+        };
+        img.onerror = () => reject(new Error("Failed to render SVG"));
+        img.src = svgUrl;
+      });
+    }
+
+    async function copyChartImage() {
+      const svg = modalChart.querySelector("svg");
+      if (!svg) return;
+      copyBtn.disabled = true;
+      setToast("Copying…");
+      try {
+        const blob = await svgToPngBlob(svg);
+        if (navigator.clipboard && window.ClipboardItem) {
+          await navigator.clipboard.write([
+            new ClipboardItem({ "image/png": blob }),
+          ]);
+          setToast("Copied to clipboard. Paste into Word / Feishu / PowerPoint.");
+        } else {
+          // Fallback: download
+          downloadBlob(blob, fileNameForCurrent());
+          setToast("Clipboard image not supported here. PNG downloaded instead.");
+        }
+      } catch (err) {
+        try {
+          const blob = await svgToPngBlob(svg);
+          downloadBlob(blob, fileNameForCurrent());
+          setToast("Copy failed. PNG downloaded instead.");
+        } catch (e2) {
+          setToast("Could not copy chart. Try Download PNG.");
+        }
+      } finally {
+        copyBtn.disabled = false;
+        setTimeout(() => {
+          if (copyToast.textContent.startsWith("Copied") || copyToast.textContent.includes("downloaded")) {
+            /* keep message briefly */
+          }
+        }, 0);
+      }
+    }
+
+    function fileNameForCurrent() {
+      const safe = (modalTitle.textContent || currentMetricKey || "chart")
+        .replace(/[^\w\-]+/g, "_")
+        .replace(/_+/g, "_")
+        .slice(0, 60);
+      return `CAMENA_${safe}.png`;
+    }
+
+    function downloadBlob(blob, name) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function downloadChartImage() {
+      const svg = modalChart.querySelector("svg");
+      if (!svg) return;
+      downloadBtn.disabled = true;
+      setToast("Preparing PNG…");
+      try {
+        const blob = await svgToPngBlob(svg);
+        downloadBlob(blob, fileNameForCurrent());
+        setToast("PNG downloaded.");
+      } catch (err) {
+        setToast("Download failed.");
+      } finally {
+        downloadBtn.disabled = false;
+      }
+    }
 
     function openModal(metric) {
       const d = DATA[metric.key];
+      currentMetricKey = metric.key;
       modalTitle.textContent = metric.title;
+      setToast("");
       modalChart.innerHTML = donutSVG(d.slices, d.total, { large: true });
       modal.classList.add("open");
       modal.setAttribute("aria-hidden", "false");
@@ -440,7 +600,11 @@
       modal.setAttribute("aria-hidden", "true");
       document.body.classList.remove("modal-open");
       modalChart.innerHTML = "";
+      setToast("");
     }
+
+    copyBtn.addEventListener("click", copyChartImage);
+    downloadBtn.addEventListener("click", downloadChartImage);
 
     modal.addEventListener("click", (e) => {
       if (e.target && e.target.getAttribute("data-close") === "1") closeModal();
