@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:fixed-gradient-v1 -->
+  <!-- build:donut-gradient-v1 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CAMENA · H1 2026 Dashboard</title>
@@ -527,13 +527,26 @@
       },
     ];
 
-    const COLORS = [
-      "#0f766e", "#1e3a5f", "#14b8a6", "#334155", "#2dd4bf",
-      "#0ea5e9", "#64748b", "#059669", "#0369a1", "#94a3b8",
-      "#115e59", "#1d4ed8", "#5eead4", "#475569", "#0891b2", "#6ee7b7"
+    // Ranked sequential palette for donut slices and their legend bars.
+    // Colors run from dark blue-teal (largest value) to pale mint (smallest).
+    // Charts with fewer rows sample the full scale instead of reusing only
+    // the first few, so every legend remains clearly graduated.
+    const DONUT_COLORS = [
+      "#0b3c5d", "#0d4b66", "#0f596e", "#106874",
+      "#11777a", "#13867e", "#159582", "#1aa486",
+      "#2ab18d", "#3ebd97", "#56c8a3", "#70d2b0",
+      "#8bdcbe", "#a7e5cd", "#c3eddc", "#def5eb",
     ];
 
-    function colorFor(i) { return COLORS[i % COLORS.length]; }
+    function colorFor(i, total) {
+      const n = Math.max(1, Number(total) || 1);
+      if (n === 1) return DONUT_COLORS[0];
+      const index = Math.round(
+        (Math.max(0, Math.min(n - 1, i)) / (n - 1)) *
+          (DONUT_COLORS.length - 1)
+      );
+      return DONUT_COLORS[index];
+    }
 
     function fmtPct(p) {
       return Number(p).toFixed(1) + "%";
@@ -1308,7 +1321,7 @@
         if (slices.length === 1) {
           arcs.push(
             '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' +
-              colorFor(i) + '" stroke-width="' + stroke + '" />'
+              colorFor(i, slices.length) + '" stroke-width="' + stroke + '" />'
           );
         } else {
           const x1 = cx + r * Math.cos(angle);
@@ -1318,7 +1331,7 @@
           const largeArc = sweep > Math.PI ? 1 : 0;
           arcs.push(
             '<path d="M ' + x1 + " " + y1 + " A " + r + " " + r + " 0 " + largeArc +
-              " 1 " + x2 + " " + y2 + '" fill="none" stroke="' + colorFor(i) +
+              " 1 " + x2 + " " + y2 + '" fill="none" stroke="' + colorFor(i, slices.length) +
               '" stroke-width="' + stroke + '" stroke-linecap="butt" />'
           );
         }
@@ -1341,7 +1354,7 @@
             '<rect x="' + barX0 + '" y="' + barY.toFixed(1) + '" width="' + barMaxW +
               '" height="' + barH + '" rx="3" fill="#eef2f5" />',
             '<rect x="' + barX0 + '" y="' + barY.toFixed(1) + '" width="' + bw.toFixed(1) +
-              '" height="' + barH + '" rx="3" fill="' + colorFor(i) + '" />',
+              '" height="' + barH + '" rx="3" fill="' + colorFor(i, slices.length) + '" />',
             '<text x="' + legendRight + '" y="' + mid.toFixed(1) +
               '" text-anchor="end" dominant-baseline="middle" fill="#4b5563" font-size="' +
               valSize + '" font-family="IBM Plex Sans, sans-serif">' +
