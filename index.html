@@ -409,6 +409,7 @@
           name: name,
           rest: rest,
           textW: textW,
+          mid: mid,
           ex: cx + elbowR * Math.cos(mid),
           ey: cy + elbowR * Math.sin(mid),
         };
@@ -435,8 +436,8 @@
 
         // Feishu: right column left-aligned; left column right-aligned
         const xCol = isRight
-          ? cx + elbowR + (large ? 36 : 26)
-          : cx - elbowR - (large ? 36 : 26);
+          ? cx + elbowR + (large ? 44 : 32)
+          : cx - elbowR - (large ? 44 : 32);
 
         items.forEach(function (it, idx) {
           it.y = n === 1 ? Math.max(top, Math.min(bottom, it.ey)) : y0 + idx * gap;
@@ -448,6 +449,8 @@
 
       layoutSide(left, false);
       layoutSide(right, true);
+
+      const clearR = elbowR + (large ? 10 : 8); // keep all polyline verts outside this radius
 
       function drawLabels(items) {
         return items
@@ -462,12 +465,17 @@
               xJoin = it.x;
               xEnd = it.x - it.textW;
             }
-            // Orthogonal elbow OUTSIDE the ring only:
-            // ring → horizontal out to column → vertical to label → underline
-            // Never chords through the donut.
+
+            // 1) radial step clear of the ring stroke
+            const ox = cx + clearR * Math.cos(it.mid);
+            const oy = cy + clearR * Math.sin(it.mid);
+            // 2) horizontal to column (same Y as clear point) — stays outside ring
+            // 3) vertical to label row
+            // 4) underline
             const path =
               "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
-              " L " + xJoin.toFixed(1) + " " + it.ey.toFixed(1) +
+              " L " + ox.toFixed(1) + " " + oy.toFixed(1) +
+              " L " + xJoin.toFixed(1) + " " + oy.toFixed(1) +
               " L " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
               " L " + xEnd.toFixed(1) + " " + lineY.toFixed(1);
 
