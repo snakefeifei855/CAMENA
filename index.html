@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:export-align-v1 -->
+  <!-- build:square-frame-v1 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CAMENA · H1 2026 Dashboard</title>
@@ -355,11 +355,12 @@
       color: var(--teal);
     }
 
-    /* Frame follows the shared Analysis-countries bbox, measured in Web Mercator.
-       --map-aspect is overwritten at runtime once the GeoJSON is parsed. */
+    /* Square frame. fitBounds on the shared Analysis-countries bbox is
+       width-bound here, so the countries touch the left and right edges and
+       the spare room falls above and below them. */
     .map-wrap {
-      width: min(100%, 1180px);
-      aspect-ratio: var(--map-aspect, 2.246);
+      width: min(100%, 860px);
+      aspect-ratio: 1;
       margin: 0 auto;
       border-radius: 8px;
       background: #f3f6f8;
@@ -368,7 +369,7 @@
     }
 
     .modal-chart .map-wrap {
-      width: 100%;
+      width: min(100%, 74vh);
     }
 
     .map-legend {
@@ -629,12 +630,12 @@
     let currentModalKind = "chart";
     let modalMapInstance = null;
 
-    // Every map shares one frame: the bounding box of the Analysis countries.
-    // Aspect is measured in Web Mercator so it matches what Leaflet draws.
+    // Every map shares one frame: the bounding box of the Analysis countries,
+    // fitted by width inside a square viewport.
     let sharedMapBounds = null;
-    let mapAspect = 2.246;
-    // PNG export keeps that aspect at 2× the 583 px PPT base width.
+    // Square PNG export at 2× the 583 px PPT base width.
     const MAP_EXPORT_W = 1166;
+    const MAP_EXPORT_H = 1166;
 
     // Callout geometry shared by the DOM labels and the PNG exporter.
     const LABEL_W = 50;
@@ -649,12 +650,7 @@
     let lastMapExportSize = null;
 
     function mapExportSize() {
-      return (
-        lastMapExportSize || {
-          w: MAP_EXPORT_W,
-          h: Math.round(MAP_EXPORT_W / mapAspect),
-        }
-      );
+      return lastMapExportSize || { w: MAP_EXPORT_W, h: MAP_EXPORT_H };
     }
 
     function computeSharedFrame(geo) {
@@ -690,15 +686,6 @@
       if (minLat > maxLat) return;
 
       sharedMapBounds = L.latLngBounds([minLat, minLng], [maxLat, maxLng]);
-      const sw = L.CRS.EPSG3857.project(sharedMapBounds.getSouthWest());
-      const ne = L.CRS.EPSG3857.project(sharedMapBounds.getNorthEast());
-      const pw = Math.abs(ne.x - sw.x);
-      const ph = Math.abs(ne.y - sw.y);
-      if (pw > 0 && ph > 0) mapAspect = pw / ph;
-      document.documentElement.style.setProperty(
-        "--map-aspect",
-        mapAspect.toFixed(5)
-      );
     }
 
     function loadGeoCountries() {
@@ -1640,18 +1627,19 @@
       const vectors = await rasterizeVectorPanes(mapEl);
       const controls = await captureMapControls(mapEl);
 
-      // Straight scale of the live frame — no cover-fit, no cropping — so
-      // screen pixels and exported pixels stay in step. Height comes from the
-      // shared aspect so all five metrics export at identical dimensions.
+      // Straight scale of the live square frame — no cover-fit, no cropping —
+      // so screen pixels and exported pixels stay in step, and all five
+      // metrics export at identical dimensions. The title sits over the empty
+      // band above the countries, keeping the PNG itself square.
       const mapW = MAP_EXPORT_W;
-      const mapH = Math.round(MAP_EXPORT_W / mapAspect);
+      const mapH = MAP_EXPORT_H;
       const kx = mapW / cssW;
       const ky = mapH / cssH;
-      const titleBand = title ? 32 : 0;
+      const titleBand = 0;
 
       const out = document.createElement("canvas");
       out.width = mapW;
-      out.height = titleBand + mapH;
+      out.height = mapH;
       const ctx = out.getContext("2d");
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, out.width, out.height);
@@ -1676,9 +1664,10 @@
       lastMapExportSize = { w: out.width, h: out.height };
 
       if (title) {
-        const padX = 6;
-        ctx.fillStyle = "#1f2a33";
-        ctx.font = "600 15px 'IBM Plex Sans', sans-serif";
+        const padX = 18;
+        const fontPx = 22;
+        const baseY = 34;
+        ctx.font = "600 " + fontPx + "px 'IBM Plex Sans', sans-serif";
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
         let t = title;
@@ -1686,7 +1675,19 @@
           t = t.slice(0, -2);
         }
         if (t !== title) t = t.slice(0, -1) + "…";
-        ctx.fillText(t, padX, titleBand / 2);
+        const tw = ctx.measureText(t).width;
+        roundRectPath(
+          ctx,
+          padX - 10,
+          baseY - fontPx,
+          tw + 20,
+          fontPx * 2,
+          8
+        );
+        ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
+        ctx.fill();
+        ctx.fillStyle = "#1f2a33";
+        ctx.fillText(t, padX, baseY);
       }
 
       return new Promise(function (resolve, reject) {
