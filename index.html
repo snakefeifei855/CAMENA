@@ -91,6 +91,16 @@
       min-height: 420px;
       display: flex;
       flex-direction: column;
+      position: relative;
+      padding-top: 18px;
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
     }
 
     .card-title {
@@ -98,8 +108,37 @@
       font-size: 0.9rem;
       font-weight: 500;
       line-height: 1.35;
-      margin: 0 0 8px;
+      margin: 0;
       min-height: 2.5em;
+      padding-right: 8px;
+      flex: 1;
+    }
+
+    .expand-btn {
+      flex: 0 0 auto;
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--line);
+      background: #f8fafb;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--ink-soft, #3a4a57);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .expand-btn:hover {
+      background: #eef6f4;
+      border-color: #b7d5cf;
+      color: var(--teal);
+    }
+
+    .expand-btn svg {
+      width: 16px;
+      height: 16px;
+      display: block;
     }
 
     .kpi-value {
@@ -133,6 +172,82 @@
       font-size: 0.8rem;
       line-height: 1.45;
     }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal.open { display: flex; }
+
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 32, 0.45);
+    }
+
+    .modal-panel {
+      position: relative;
+      z-index: 1;
+      width: min(980px, 100%);
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 40px rgba(15, 23, 32, 0.18);
+      padding: 20px 22px 24px;
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .modal-head h3 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      line-height: 1.35;
+      padding-right: 8px;
+    }
+
+    .modal-close {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      background: #f8fafb;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      line-height: 1;
+      color: #334155;
+    }
+
+    .modal-close:hover { background: #eef2f5; }
+
+    .modal-chart {
+      width: 100%;
+      min-height: 520px;
+    }
+
+    .modal-chart svg {
+      width: 100%;
+      height: auto;
+      max-height: 70vh;
+      display: block;
+    }
+
+    body.modal-open { overflow: hidden; }
   </style>
 </head>
 <body>
@@ -154,6 +269,17 @@
       Contracts signed / Award notice: Internal Process tags.
       A01–A07 completed: Internal Process = Contract signed or CRM (A01-A07).
     </p>
+  </div>
+
+  <div class="modal" id="chart-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close="1"></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-head">
+        <h3 id="modal-title"></h3>
+        <button type="button" class="modal-close" data-close="1" aria-label="Close">×</button>
+      </div>
+      <div class="modal-chart" id="modal-chart"></div>
+    </div>
   </div>
 
   <script>
@@ -181,14 +307,20 @@
       return (Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n) : n.toFixed(2)) + "%";
     }
 
-    function donutSVG(slices, totalValue) {
+    function donutSVG(slices, totalValue, opts = {}) {
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
-      const W = 620;
-      const H = 360;
+      const large = !!opts.large;
+      const W = large ? 920 : 620;
+      const H = large ? 560 : 360;
       const cx = W / 2;
       const cy = H / 2;
-      const r = 82;
-      const stroke = 30;
+      const r = large ? 130 : 82;
+      const stroke = large ? 42 : 30;
+      const fontSize = large ? 15 : 12.5;
+      const centerSize = large ? 52 : 34;
+      const gapMax = large ? 28 : 24;
+      const labelPad = large ? 22 : 14;
+      const elbowX = large ? 250 : 178;
       // Anchor sits on the outer edge of the donut ring (not outside)
       const elbowR = r + stroke / 2;
 
@@ -209,9 +341,9 @@
           const y1 = cy + r * Math.sin(angle);
           const x2 = cx + r * Math.cos(a2);
           const y2 = cy + r * Math.sin(a2);
-          const large = sweep > Math.PI ? 1 : 0;
+          const largeArc = sweep > Math.PI ? 1 : 0;
           arcs.push(
-            `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${colorFor(i)}" stroke-width="${stroke}" />`
+            `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${colorFor(i)}" stroke-width="${stroke}" />`
           );
         }
 
@@ -232,29 +364,28 @@
         items.sort((a, b) => a.ey - b.ey);
         const n = items.length;
         if (!n) return [];
-        const top = 28;
-        const bottom = H - 28;
-        const gap = Math.min(24, (bottom - top) / Math.max(n, 1));
+        const top = large ? 36 : 28;
+        const bottom = H - (large ? 36 : 28);
+        const gap = Math.min(gapMax, (bottom - top) / Math.max(n, 1));
         const block = gap * (n - 1);
         let y0 = (H - block) / 2;
         y0 = Math.max(top, Math.min(y0, bottom - block));
 
-        const xLabel = side === "right" ? W - 14 : 14;
-        const xElbow2 = side === "right" ? W - 178 : 178;
+        const xLabel = side === "right" ? W - labelPad : labelPad;
+        const xElbow2 = side === "right" ? W - elbowX : elbowX;
         const anchor = side === "right" ? "end" : "start";
+        const nameFactor = large ? 8.6 : 7.5;
+        const restFactor = large ? 7.4 : 6.6;
 
         return items.map((it, idx) => {
           const nameY = y0 + idx * gap;
           const lineY = nameY + 3;
-          const nameWidth = Math.max(40, it.name.length * 7.5);
-          const restWidth = Math.max(48, it.rest.length * 6.6);
+          const nameWidth = Math.max(40, it.name.length * nameFactor);
+          const restWidth = Math.max(48, it.rest.length * restFactor);
 
           let nameStart;
           let nameEnd;
           if (side === "right") {
-            nameEnd = xLabel;
-            nameStart = xLabel - nameWidth;
-            // shift left by rest width because whole string is right-aligned
             nameEnd = xLabel - restWidth;
             nameStart = nameEnd - nameWidth;
           } else {
@@ -266,9 +397,9 @@
           return `
             <path d="${path}" fill="none" stroke="#94a3b8" stroke-width="1" />
             <line x1="${nameStart.toFixed(1)}" y1="${lineY.toFixed(1)}" x2="${nameEnd.toFixed(1)}" y2="${lineY.toFixed(1)}" stroke="#94a3b8" stroke-width="1" />
-            <circle cx="${it.ex.toFixed(1)}" cy="${it.ey.toFixed(1)}" r="2.5" fill="${colorFor(it.i)}" stroke="#ffffff" stroke-width="1.5" />
+            <circle cx="${it.ex.toFixed(1)}" cy="${it.ey.toFixed(1)}" r="${large ? 3 : 2.5}" fill="${colorFor(it.i)}" stroke="#ffffff" stroke-width="1.5" />
             <text x="${xLabel}" y="${nameY.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="alphabetic"
-              fill="#1f2a33" font-size="12.5" font-family="IBM Plex Sans, sans-serif">
+              fill="#1f2a33" font-size="${fontSize}" font-family="IBM Plex Sans, sans-serif">
               <tspan font-weight="600">${it.name}</tspan><tspan fill="#4b5563">${it.rest}</tspan>
             </text>
           `;
@@ -278,17 +409,45 @@
       const labelNodes = [...layoutSide(left, "left"), ...layoutSide(right, "right")].join("");
 
       const center = `
-        <text x="${cx}" y="${cy - 6}" text-anchor="middle" fill="#1f2a33" font-size="34" font-weight="700"
+        <text x="${cx}" y="${cy - 8}" text-anchor="middle" fill="#1f2a33" font-size="${centerSize}" font-weight="700"
           font-family="IBM Plex Sans, sans-serif">${totalValue}</text>
-        <text x="${cx}" y="${cy + 18}" text-anchor="middle" fill="#6b7785" font-size="13"
+        <text x="${cx}" y="${cy + (large ? 24 : 18)}" text-anchor="middle" fill="#6b7785" font-size="${large ? 16 : 13}"
           font-family="IBM Plex Sans, sans-serif">Total</text>
       `;
 
       return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${arcs.join("")}${labelNodes}${center}</svg>`;
     }
 
+    const EXPAND_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
     const kpiRoot = document.getElementById("kpi-row");
     const chartRoot = document.getElementById("chart-row");
+    const modal = document.getElementById("chart-modal");
+    const modalTitle = document.getElementById("modal-title");
+    const modalChart = document.getElementById("modal-chart");
+
+    function openModal(metric) {
+      const d = DATA[metric.key];
+      modalTitle.textContent = metric.title;
+      modalChart.innerHTML = donutSVG(d.slices, d.total, { large: true });
+      modal.classList.add("open");
+      modal.setAttribute("aria-hidden", "false");
+      document.body.classList.add("modal-open");
+    }
+
+    function closeModal() {
+      modal.classList.remove("open");
+      modal.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("modal-open");
+      modalChart.innerHTML = "";
+    }
+
+    modal.addEventListener("click", (e) => {
+      if (e.target && e.target.getAttribute("data-close") === "1") closeModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && modal.classList.contains("open")) closeModal();
+    });
 
     METRICS.forEach((m) => {
       const d = DATA[m.key];
@@ -299,14 +458,19 @@
         </article>
       `);
 
-      chartRoot.insertAdjacentHTML("beforeend", `
-        <article class="card chart">
+      const article = document.createElement("article");
+      article.className = "card chart";
+      article.innerHTML = `
+        <div class="card-head">
           <h2 class="card-title">${m.title}</h2>
-          <div class="donut-wrap">
-            ${donutSVG(d.slices, d.total)}
-          </div>
-        </article>
-      `);
+          <button type="button" class="expand-btn" title="Enlarge chart" aria-label="Enlarge chart">${EXPAND_ICON}</button>
+        </div>
+        <div class="donut-wrap">
+          ${donutSVG(d.slices, d.total)}
+        </div>
+      `;
+      article.querySelector(".expand-btn").addEventListener("click", () => openModal(m));
+      chartRoot.appendChild(article);
     });
   </script>
 </body>
