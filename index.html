@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:titles-h1-en -->
+  <!-- build:chart-spacing-tight -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CAMENA · H1 2026 Dashboard</title>
@@ -89,11 +89,12 @@
     }
 
     .card.chart {
-      min-height: 420px;
+      min-height: 380px;
       display: flex;
       flex-direction: column;
       position: relative;
-      padding-top: 18px;
+      padding-top: 12px;
+      padding-bottom: 10px;
     }
 
     .card-head {
@@ -101,16 +102,16 @@
       align-items: flex-start;
       justify-content: space-between;
       gap: 8px;
-      margin-bottom: 4px;
+      margin-bottom: 0;
     }
 
     .card-title {
       color: var(--muted);
       font-size: 0.9rem;
       font-weight: 500;
-      line-height: 1.35;
+      line-height: 1.3;
       margin: 0;
-      min-height: 2.5em;
+      min-height: 0;
       padding-right: 8px;
       flex: 1;
     }
@@ -156,14 +157,15 @@
       margin: 0 auto;
       flex: 1 1 auto;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
+      padding-top: 2px;
     }
 
     .donut-wrap svg {
       width: 100%;
       height: auto;
-      max-height: 340px;
+      max-height: 320px;
       display: block;
     }
 
@@ -437,29 +439,32 @@
       const large = !!opts.large;
       const unit = opts.unit || "count";
       const isGW = unit === "GW";
-      const W = large ? 960 : 680;
-      const H = large ? 580 : 400;
+      const W = large ? 920 : 660;
+      const H = large ? 520 : 360;
 
-      const cx = large ? 170 : 118;
-      const cy = H / 2;
+      const cx = large ? 150 : 108;
       const r = large ? 108 : 76;
       const stroke = large ? 38 : 28;
       const centerSize = isGW
         ? (large ? 32 : 24)
         : (large ? 44 : 34);
 
-      const legendX = large ? 370 : 255;
-      const legendRight = W - (large ? 20 : 14);
+      // Keep legend closer to the donut (less horizontal gap).
+      const legendX = large ? 310 : 215;
+      const legendRight = W - (large ? 18 : 12);
       const n = slices.length;
-      const availH = H - (large ? 40 : 28);
-      const rowH = Math.min(large ? 32 : 26, Math.max(large ? 20 : 17, availH / Math.max(n, 1)));
+      const topPad = large ? 10 : 6;
+      const bottomPad = large ? 10 : 6;
+      const availH = H - topPad - bottomPad;
+      const rowH = Math.min(large ? 30 : 24, Math.max(large ? 18 : 16, availH / Math.max(n, 1)));
       const nameSize = rowH < 20 ? (large ? 12 : 10) : (large ? 13 : 12);
       const valSize = rowH < 20 ? (large ? 11 : 10) : (large ? 12 : 11);
-      const barH = Math.max(8, Math.min(large ? 16 : 13, rowH - 6));
+      const barH = Math.max(8, Math.min(large ? 15 : 12, rowH - 5));
       const legendBlock = n * rowH;
-      const legendTop = Math.max(large ? 20 : 14, (H - legendBlock) / 2);
+      const legendTop = topPad + Math.max(0, (availH - legendBlock) / 2);
+      const cy = Math.max(r + stroke / 2 + topPad, legendTop + legendBlock / 2);
       const nameColW = large ? 112 : 92;
-      const valColW = isGW ? (large ? 120 : 104) : (large ? 92 : 80);
+      const valColW = isGW ? (large ? 118 : 100) : (large ? 90 : 78);
       const barX0 = legendX + nameColW;
       const barX1 = legendRight - valColW;
       const barMaxW = Math.max(60, barX1 - barX0);
@@ -529,8 +534,8 @@
 
       // subtle divider between chart and legend
       const divider =
-        '<line x1="' + (legendX - (large ? 28 : 18)) + '" y1="' + (large ? 36 : 28) +
-        '" x2="' + (legendX - (large ? 28 : 18)) + '" y2="' + (H - (large ? 36 : 28)) +
+        '<line x1="' + (legendX - (large ? 18 : 12)) + '" y1="' + (topPad + 4) +
+        '" x2="' + (legendX - (large ? 18 : 12)) + '" y2="' + (H - bottomPad - 4) +
         '" stroke="#e6ebf0" stroke-width="1" />';
 
       return (
