@@ -88,7 +88,7 @@
     }
 
     .card.chart {
-      min-height: 340px;
+      min-height: 380px;
       display: flex;
       flex-direction: column;
     }
@@ -112,13 +112,13 @@
 
     .donut-wrap {
       position: relative;
-      width: 210px;
-      height: 210px;
-      margin: 4px auto 8px;
-      flex: 0 0 auto;
+      width: min(100%, 340px);
+      aspect-ratio: 1;
+      margin: 0 auto;
+      flex: 1 1 auto;
     }
 
-    .donut-wrap svg { width: 100%; height: 100%; }
+    .donut-wrap svg { width: 100%; height: 100%; display: block; }
 
     .donut-center {
       position: absolute;
@@ -140,31 +140,6 @@
       margin-top: 4px;
       color: var(--muted);
       font-size: 0.82rem;
-    }
-
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px 12px;
-      justify-content: center;
-      margin-top: auto;
-      padding-top: 4px;
-    }
-
-    .legend-item {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.78rem;
-      color: var(--text);
-      white-space: nowrap;
-    }
-
-    .swatch {
-      width: 9px;
-      height: 9px;
-      border-radius: 2px;
-      flex: 0 0 auto;
     }
 
     .footnote {
@@ -216,37 +191,58 @@
 
     function colorFor(i) { return COLORS[i % COLORS.length]; }
 
+    function fmtPct(p) {
+      const n = Number(p);
+      return (Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n) : n.toFixed(2)) + "%";
+    }
+
     function donutSVG(slices) {
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
-      const cx = 100, cy = 100, r = 72, stroke = 28;
+      const size = 360;
+      const cx = size / 2;
+      const cy = size / 2;
+      const r = 78;
+      const stroke = 30;
+      const labelR = 118;
       let angle = -Math.PI / 2;
-      const parts = [];
+      const arcs = [];
+      const labels = [];
+
+      // Only label slices that are readable (>= ~3% or top items)
+      const minLabelPct = slices.length > 8 ? 3.5 : 2.2;
+
       slices.forEach((s, i) => {
         const sweep = (s.value / total) * Math.PI * 2;
         const a2 = angle + sweep;
-        const x1 = cx + r * Math.cos(angle);
-        const y1 = cy + r * Math.sin(angle);
-        const x2 = cx + r * Math.cos(a2);
-        const y2 = cy + r * Math.sin(a2);
-        const large = sweep > Math.PI ? 1 : 0;
-        // For single full circle, draw circle instead
+        const mid = angle + sweep / 2;
+
         if (slices.length === 1) {
-          parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colorFor(i)}" stroke-width="${stroke}" />`);
+          arcs.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colorFor(i)}" stroke-width="${stroke}" />`);
         } else {
-          parts.push(
-            `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${colorFor(i)}" stroke-width="${stroke}" stroke-linecap="butt" />`
+          const x1 = cx + r * Math.cos(angle);
+          const y1 = cy + r * Math.sin(angle);
+          const x2 = cx + r * Math.cos(a2);
+          const y2 = cy + r * Math.sin(a2);
+          const large = sweep > Math.PI ? 1 : 0;
+          arcs.push(
+            `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${colorFor(i)}" stroke-width="${stroke}" />`
           );
         }
+
+        if (s.pct >= minLabelPct || i < 4) {
+          const lx = cx + labelR * Math.cos(mid);
+          const ly = cy + labelR * Math.sin(mid);
+          const anchor = Math.cos(mid) >= 0.15 ? "start" : (Math.cos(mid) <= -0.15 ? "end" : "middle");
+          const line = `${s.name}: ${s.value} (${fmtPct(s.pct)})`;
+          labels.push(
+            `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" fill="#1f2a33" font-size="11" font-family="IBM Plex Sans, sans-serif">${line}</text>`
+          );
+        }
+
         angle = a2;
       });
-      return `<svg viewBox="0 0 200 200" aria-hidden="true">${parts.join("")}</svg>`;
-    }
 
-    function legendHTML(slices, maxItems = 8) {
-      const shown = slices.slice(0, maxItems);
-      return shown.map((s, i) =>
-        `<span class="legend-item"><span class="swatch" style="background:${colorFor(i)}"></span>${s.name}: ${s.value} (${Number(s.pct).toFixed(s.pct % 1 ? 2 : 0)}%)</span>`
-      ).join("");
+      return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true">${arcs.join("")}${labels.join("")}</svg>`;
     }
 
     const kpiRoot = document.getElementById("kpi-row");
@@ -271,7 +267,6 @@
               <div class="t">Total</div>
             </div>
           </div>
-          <div class="legend">${legendHTML(d.slices, m.key === "analysis" || m.key === "oldRevision" || m.key === "new2026" ? 10 : 6)}</div>
         </article>
       `);
     });
