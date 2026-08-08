@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:shared-frame-v2 -->
+  <!-- build:export-align-v1 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CAMENA · H1 2026 Dashboard</title>
@@ -290,7 +290,9 @@
       min-height: 0;
     }
 
-    .modal-chart svg {
+    /* Direct child only: the enlarged donut. Leaflet's own SVG panes live
+       deeper in the tree and must keep their intrinsic sizing. */
+    .modal-chart > svg {
       width: 100%;
       height: auto;
       max-height: none;
@@ -392,7 +394,10 @@
       border-radius: 2px;
     }
 
+    /* Geometry here is mirrored by the PNG exporter (LABEL_* constants),
+       so keep font sizes, line-height and box model in sync. */
     .country-label {
+      box-sizing: border-box !important;
       background: rgba(255, 255, 255, 0.94) !important;
       border: 1px solid #cbd5e1 !important;
       border-radius: 4px !important;
@@ -400,9 +405,13 @@
       color: #0f172a;
       font-weight: 700;
       font-size: 11px;
-      line-height: 1.15;
+      line-height: 1.1;
       text-align: center;
-      padding: 2px 5px !important;
+      padding: 0 4px !important;
+      display: flex !important;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       white-space: nowrap;
       pointer-events: none;
     }
@@ -627,8 +636,25 @@
     // PNG export keeps that aspect at 2× the 583 px PPT base width.
     const MAP_EXPORT_W = 1166;
 
+    // Callout geometry shared by the DOM labels and the PNG exporter.
+    const LABEL_W = 50;
+    const LABEL_H = 28;
+    const LABEL_F1 = 11;
+    const LABEL_F2 = 10;
+    const LABEL_LH = 1.1;
+    const ANCHOR_R = 2.4;
+    const mapsByContainerId = {};
+
+    // Updated by mapToPngBlob so the toasts report what was really produced.
+    let lastMapExportSize = null;
+
     function mapExportSize() {
-      return { w: MAP_EXPORT_W, h: Math.round(MAP_EXPORT_W / mapAspect) };
+      return (
+        lastMapExportSize || {
+          w: MAP_EXPORT_W,
+          h: Math.round(MAP_EXPORT_W / mapAspect),
+        }
+      );
     }
 
     function computeSharedFrame(geo) {
@@ -728,6 +754,9 @@
 
     function destroyMaps(list) {
       (list || []).forEach(function (m) {
+        Object.keys(mapsByContainerId).forEach(function (id) {
+          if (mapsByContainerId[id] === m) delete mapsByContainerId[id];
+        });
         try { m.remove(); } catch (e) {}
       });
     }
@@ -848,7 +877,7 @@
       return { x: cx + dx * s, y: cy + dy * s };
     }
 
-    function curvedLeaderLatLngs(map, a, b) {
+    function curvedLeaderPoints(a, b) {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -872,20 +901,21 @@
           3 * u * u * t * c1.y +
           3 * u * t * t * c2.y +
           t * t * t * b.y;
-        pts.push(map.containerPointToLatLng([x, y]));
+        pts.push({ x: x, y: y });
       }
       return pts;
     }
 
     function layoutCalloutLabels(map, labelLayer, items) {
       labelLayer.clearLayers();
+      map.__callouts = [];
       if (!items.length) return;
 
       const size = map.getSize();
       if (size.x < 60 || size.y < 60) return;
 
-      const labelW = 50;
-      const labelH = 26;
+      const labelW = LABEL_W;
+      const labelH = LABEL_H;
       const margin = 7;
       const gap = 4;
       const covers = buildCountryMask(map, items);
@@ -973,39 +1003,62 @@
 
         placed.push(chosen.rect);
         const edge = rectEdgePoint(chosen.rect, anchorPt);
-        const curve = curvedLeaderLatLngs(map, anchorPt, edge);
+        const curve = curvedLeaderPoints(anchorPt, edge);
+        const pane = map.__calloutPane ? "calloutPane" : undefined;
 
-        L.polyline(curve, {
-          color: "#475569",
-          weight: 1.15,
-          opacity: 0.92,
-          interactive: false,
-          lineJoin: "round",
-          lineCap: "round",
-        }).addTo(labelLayer);
+        L.polyline(
+          curve.map(function (p) {
+            return map.containerPointToLatLng([p.x, p.y]);
+          }),
+          {
+            color: "#475569",
+            weight: 1.15,
+            opacity: 0.92,
+            interactive: false,
+            lineJoin: "round",
+            lineCap: "round",
+            pane: pane,
+            renderer: map.__calloutRenderer,
+          }
+        ).addTo(labelLayer);
 
         L.circleMarker(entry.item.anchor, {
-          radius: 2.4,
+          radius: ANCHOR_R,
           color: "#0f766e",
           fillColor: "#0f766e",
           fillOpacity: 1,
           weight: 0,
           interactive: false,
+          pane: pane,
+          renderer: map.__calloutRenderer,
         }).addTo(labelLayer);
 
+        const countText = String(entry.item.row.count);
+        const gwText = Number(entry.item.row.gw).toFixed(1) + " GW";
         L.marker(map.containerPointToLatLng([chosen.cx, chosen.cy]), {
           interactive: false,
+          pane: pane,
           icon: L.divIcon({
             className: "country-label",
-            html:
-              entry.item.row.count +
-              '<span class="gw">' +
-              Number(entry.item.row.gw).toFixed(1) +
-              " GW</span>",
+            html: countText + '<span class="gw">' + gwText + "</span>",
             iconSize: [labelW, labelH],
             iconAnchor: [labelW / 2, labelH / 2],
           }),
         }).addTo(labelLayer);
+
+        // Snapshot in container pixels so the PNG exporter can redraw the
+        // callouts itself instead of trusting html2canvas with Leaflet's
+        // transformed marker DOM.
+        map.__callouts.push({
+          cx: chosen.cx,
+          cy: chosen.cy,
+          w: labelW,
+          h: labelH,
+          count: countText,
+          gw: gwText,
+          anchor: { x: anchorPt.x, y: anchorPt.y },
+          curve: curve,
+        });
       });
     }
 
@@ -1028,6 +1081,17 @@
         zoomDelta: 0.4,
       }).setView([32, 55], 3.2);
       map.attributionControl.setPosition("bottomleft");
+
+      // Callouts live in their own pane so the PNG exporter can drop the whole
+      // subtree in one go and repaint it at exact coordinates.
+      const calloutPane = map.createPane("calloutPane");
+      calloutPane.style.zIndex = 640;
+      calloutPane.style.pointerEvents = "none";
+      calloutPane.classList.add("callout-pane");
+      map.__calloutPane = calloutPane;
+      map.__calloutRenderer = L.svg({ pane: "calloutPane" });
+      map.__callouts = [];
+      mapsByContainerId[containerId] = map;
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
         attribution: "&copy; OpenStreetMap, &copy; CARTO",
@@ -1386,65 +1450,244 @@
       return modalTitle.textContent || currentMetricKey || "CAMENA chart";
     }
 
+    function roundRectPath(ctx, x, y, w, h, r) {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
+    }
+
+    // Repaint leaders, anchor dots and label boxes from the container-pixel
+    // snapshot taken during layout, so they land exactly where the screen
+    // shows them regardless of how html2canvas treats Leaflet's transforms.
+    function drawCallouts(ctx, map, kx, ky, offY) {
+      const items = (map && map.__callouts) || [];
+      if (!items.length) return;
+      const k = kx;
+      const X = function (v) { return v * kx; };
+      const Y = function (v) { return offY + v * ky; };
+
+      ctx.save();
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(71, 85, 105, 0.92)";
+      ctx.lineWidth = 1.15 * k;
+      items.forEach(function (it) {
+        const pts = it.curve || [];
+        if (pts.length < 2) return;
+        ctx.beginPath();
+        ctx.moveTo(X(pts[0].x), Y(pts[0].y));
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(X(pts[i].x), Y(pts[i].y));
+        }
+        ctx.stroke();
+      });
+
+      ctx.fillStyle = "#0f766e";
+      items.forEach(function (it) {
+        ctx.beginPath();
+        ctx.arc(X(it.anchor.x), Y(it.anchor.y), ANCHOR_R * k, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      const blockH = (LABEL_F1 + LABEL_F2) * LABEL_LH;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      items.forEach(function (it) {
+        const x = X(it.cx - it.w / 2);
+        const y = Y(it.cy - it.h / 2);
+        const w = it.w * k;
+        const h = it.h * k;
+        roundRectPath(ctx, x, y, w, h, 4 * k);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
+        ctx.fill();
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.lineWidth = k;
+        ctx.stroke();
+
+        const top = y + (h - blockH * k) / 2;
+        ctx.fillStyle = "#0f172a";
+        ctx.font = "700 " + LABEL_F1 * k + "px 'IBM Plex Sans', sans-serif";
+        ctx.fillText(it.count, x + w / 2, top + (LABEL_F1 * LABEL_LH * k) / 2);
+        ctx.fillStyle = "#334155";
+        ctx.font = "600 " + LABEL_F2 * k + "px 'IBM Plex Sans', sans-serif";
+        ctx.fillText(
+          it.gw,
+          x + w / 2,
+          top + (LABEL_F1 * LABEL_LH + (LABEL_F2 * LABEL_LH) / 2) * k
+        );
+      });
+      ctx.restore();
+    }
+
+    // html2canvas drops the positioning transform on Leaflet's vector pane and
+    // paints the polygons at the pane origin, so rasterize that SVG separately
+    // and place it by its on-screen rect.
+    function rasterizeVectorPanes(mapEl) {
+      const contRect = mapEl.getBoundingClientRect();
+      const svgs = mapEl.querySelectorAll(".leaflet-overlay-pane svg");
+      const jobs = [];
+      Array.prototype.forEach.call(svgs, function (svgEl) {
+        const r = svgEl.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        const clone = svgEl.cloneNode(true);
+        clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        clone.setAttribute("width", r.width);
+        clone.setAttribute("height", r.height);
+        clone.style.transform = "none";
+        clone.style.left = "0";
+        clone.style.top = "0";
+        // Blob URL rather than a data URL: the serialized country paths run to
+        // ~140 kB and data URLs of that size are unreliable in <img>.
+        const url = URL.createObjectURL(
+          new Blob([new XMLSerializer().serializeToString(clone)], {
+            type: "image/svg+xml;charset=utf-8",
+          })
+        );
+        jobs.push(
+          new Promise(function (resolve) {
+            const img = new Image();
+            img.onload = function () {
+              URL.revokeObjectURL(url);
+              resolve({
+                img: img,
+                x: r.left - contRect.left,
+                y: r.top - contRect.top,
+                w: r.width,
+                h: r.height,
+              });
+            };
+            img.onerror = function () {
+              URL.revokeObjectURL(url);
+              resolve(null);
+            };
+            img.src = url;
+          })
+        );
+      });
+      return Promise.all(jobs);
+    }
+
+    // Legend and attribution sit above the vector pane on screen, so they are
+    // captured on their own and painted last.
+    function captureMapControls(mapEl) {
+      const contRect = mapEl.getBoundingClientRect();
+      const nodes = mapEl.querySelectorAll(
+        ".leaflet-control-container .leaflet-control"
+      );
+      const jobs = [];
+      Array.prototype.forEach.call(nodes, function (node) {
+        if (node.classList.contains("leaflet-control-zoom")) return;
+        const r = node.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        jobs.push(
+          html2canvas(node, {
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: null,
+            scale: 2,
+          })
+            .then(function (canvas) {
+              return {
+                canvas: canvas,
+                x: r.left - contRect.left,
+                y: r.top - contRect.top,
+                w: r.width,
+                h: r.height,
+              };
+            })
+            .catch(function () { return null; })
+        );
+      });
+      return Promise.all(jobs);
+    }
+
     async function mapToPngBlob(mapEl, titleText) {
       if (typeof html2canvas !== "function") {
         throw new Error("html2canvas not loaded");
       }
       const title = String(titleText || "").trim();
-      const size = mapExportSize();
-      // Capture at higher res then fit into the shared-frame aspect
+      const map = mapsByContainerId[mapEl.id];
+      const cssW = mapEl.clientWidth;
+      const cssH = mapEl.clientHeight;
+      if (!cssW || !cssH) throw new Error("Map not ready");
+
+      // Basemap tiles only; every layer html2canvas mishandles is redrawn below.
       const canvasMap = await html2canvas(mapEl, {
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
         scale: 2,
-        width: mapEl.clientWidth || size.w,
-        height: mapEl.clientHeight || size.h,
+        width: cssW,
+        height: cssH,
+        ignoreElements: function (el) {
+          return !!(
+            el.classList &&
+            (el.classList.contains("callout-pane") ||
+              el.classList.contains("leaflet-overlay-pane") ||
+              el.classList.contains("leaflet-control-container"))
+          );
+        },
       });
+      const vectors = await rasterizeVectorPanes(mapEl);
+      const controls = await captureMapControls(mapEl);
 
-      const padX = 10;
-      const padTop = title ? 8 : 6;
-      const titleBand = title ? 30 : 0;
-      const padBottom = 6;
-      // The map itself keeps the computed aspect; the title band sits above it.
-      const boxW = size.w - padX * 2;
-      const boxH = Math.round(boxW / mapAspect);
-      const boxY = padTop + titleBand;
+      // Straight scale of the live frame — no cover-fit, no cropping — so
+      // screen pixels and exported pixels stay in step. Height comes from the
+      // shared aspect so all five metrics export at identical dimensions.
+      const mapW = MAP_EXPORT_W;
+      const mapH = Math.round(MAP_EXPORT_W / mapAspect);
+      const kx = mapW / cssW;
+      const ky = mapH / cssH;
+      const titleBand = title ? 32 : 0;
 
       const out = document.createElement("canvas");
-      out.width = size.w;
-      out.height = boxY + boxH + padBottom;
+      out.width = mapW;
+      out.height = titleBand + mapH;
       const ctx = out.getContext("2d");
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, out.width, out.height);
 
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, titleBand, mapW, mapH);
+      ctx.clip();
+      ctx.drawImage(canvasMap, 0, titleBand, mapW, mapH);
+      vectors.forEach(function (v) {
+        if (v) {
+          ctx.drawImage(v.img, v.x * kx, titleBand + v.y * ky, v.w * kx, v.h * ky);
+        }
+      });
+      drawCallouts(ctx, map, kx, ky, titleBand);
+      controls.forEach(function (c) {
+        if (c) {
+          ctx.drawImage(c.canvas, c.x * kx, titleBand + c.y * ky, c.w * kx, c.h * ky);
+        }
+      });
+      ctx.restore();
+      lastMapExportSize = { w: out.width, h: out.height };
+
       if (title) {
+        const padX = 6;
         ctx.fillStyle = "#1f2a33";
         ctx.font = "600 15px 'IBM Plex Sans', sans-serif";
-        ctx.textBaseline = "top";
-        // Truncate long titles to fit PPT width
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
         let t = title;
-        while (ctx.measureText(t).width > boxW && t.length > 8) {
+        while (ctx.measureText(t).width > mapW - padX * 2 && t.length > 8) {
           t = t.slice(0, -2);
         }
         if (t !== title) t = t.slice(0, -1) + "…";
-        ctx.fillText(t, padX, padTop);
+        ctx.fillText(t, padX, titleBand / 2);
       }
-
-      // Cover-fit map into remaining box while keeping aspect, then clip to PPT frame
-      const srcW = canvasMap.width;
-      const srcH = canvasMap.height;
-      const scale = Math.max(boxW / srcW, boxH / srcH);
-      const drawW = srcW * scale;
-      const drawH = srcH * scale;
-      const dx = padX + (boxW - drawW) / 2;
-      const dy = boxY + (boxH - drawH) / 2;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(padX, boxY, boxW, boxH);
-      ctx.clip();
-      ctx.drawImage(canvasMap, dx, dy, drawW, drawH);
-      ctx.restore();
 
       return new Promise(function (resolve, reject) {
         out.toBlob(function (blob) {
