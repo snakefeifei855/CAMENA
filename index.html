@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:map-callouts -->
+  <!-- build:map-callouts-v2 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CAMENA · H1 2026 Dashboard</title>
@@ -697,6 +697,160 @@
       );
     }
 
+    function pointInRing(pt, ring) {
+      // Ray casting; ring = [{x,y}, ...]
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i].x;
+        const yi = ring[i].y;
+        const xj = ring[j].x;
+        const yj = ring[j].y;
+        const intersect =
+          yi > pt.y !== yj > pt.y &&
+          pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi + 1e-9) + xi;
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function projectLayerRings(map, layer) {
+      const latlngs = layer.getLatLngs();
+      const rings = [];
+      function walk(node) {
+        if (!node || !node.length) return;
+        const first = node[0];
+        if (first && typeof first.lat === "number") {
+          rings.push(
+            node.map(function (ll) {
+              return map.latLngToContainerPoint(ll);
+            })
+          );
+          return;
+        }
+        for (let i = 0; i < node.length; i++) walk(node[i]);
+      }
+      walk(latlngs);
+      return rings;
+    }
+
+    function sampleRectPoints(rect) {
+      const x0 = rect.x;
+      const y0 = rect.y;
+      const x1 = rect.x + rect.w;
+      const y1 = rect.y + rect.h;
+      const mx = (x0 + x1) / 2;
+      const my = (y0 + y1) / 2;
+      return [
+        { x: x0, y: y0 },
+        { x: x1, y: y0 },
+        { x: x0, y: y1 },
+        { x: x1, y: y1 },
+        { x: mx, y: my },
+        { x: mx, y: y0 },
+        { x: mx, y: y1 },
+        { x: x0, y: my },
+        { x: x1, y: my },
+      ];
+    }
+
+    function rectOverlapsCountries(rect, countryRings, countryBoxes) {
+      const pad = 3;
+      const expanded = {
+        x: rect.x - pad,
+        y: rect.y - pad,
+        w: rect.w + pad * 2,
+        h: rect.h + pad * 2,
+      };
+      for (let i = 0; i < countryBoxes.length; i++) {
+        if (!rectsOverlap(expanded, countryBoxes[i], 0)) continue;
+        const pts = sampleRectPoints(expanded);
+        const rings = countryRings[i];
+        for (let p = 0; p < pts.length; p++) {
+          for (let r = 0; r < rings.length; r++) {
+            if (rings[r].length >= 3 && pointInRing(pts[p], rings[r])) {
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    function curvedLeaderLatLngs(map, fromLl, toLl, clusterCenterPt) {
+      const a = map.latLngToContainerPoint(fromLl);
+      const b = map.latLngToContainerPoint(toLl);
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      let px = -dy / len;
+      let py = dx / len;
+      // Bend away from the country cluster center
+      const vx = mx - clusterCenterPt.x;
+      const vy = my - clusterCenterPt.y;
+      if (vx * px + vy * py < 0) {
+        px = -px;
+        py = -py;
+      }
+      const bulge = Math.min(90, Math.max(24, len * 0.42));
+      // Two control points for a soft cubic-like path (sampled)
+      const c1 = { x: a.x + dx * 0.25 + px * bulge, y: a.y + dy * 0.25 + py * bulge };
+      const c2 = { x: a.x + dx * 0.75 + px * bulge, y: a.y + dy * 0.75 + py * bulge };
+      const pts = [];
+      for (let i = 0; i <= 14; i++) {
+        const t = i / 14;
+        const u = 1 - t;
+        // cubic bezier a,c1,c2,b
+        const x =
+          u * u * u * a.x +
+          3 * u * u * t * c1.x +
+          3 * u * t * t * c2.x +
+          t * t * t * b.x;
+        const y =
+          u * u * u * a.y +
+          3 * u * u * t * c1.y +
+          3 * u * t * t * c2.y +
+          t * t * t * b.y;
+        pts.push(map.containerPointToLatLng([x, y]));
+      }
+      return pts;
+    }
+
+    function buildEdgeSlots(size, labelW, labelH, margin, reserved) {
+      const slots = [];
+      const step = labelH + 8;
+      function pushSlot(cx, cy) {
+        const rect = {
+          x: cx - labelW / 2,
+          y: cy - labelH / 2,
+          w: labelW,
+          h: labelH,
+        };
+        if (
+          rect.x < margin ||
+          rect.y < margin ||
+          rect.x + rect.w > size.x - margin ||
+          rect.y + rect.h > size.y - margin
+        ) {
+          return;
+        }
+        if (rectsOverlap(rect, reserved, 4)) return;
+        slots.push({ cx: cx, cy: cy, rect: rect });
+      }
+      // Left & right gutters
+      for (let y = margin + labelH / 2; y <= size.y - margin - labelH / 2; y += step) {
+        pushSlot(margin + labelW / 2, y);
+        pushSlot(size.x - margin - labelW / 2, y);
+      }
+      // Top & bottom gutters
+      for (let x = margin + labelW / 2 + step; x <= size.x - margin - labelW / 2 - step; x += labelW + 10) {
+        pushSlot(x, margin + labelH / 2);
+        pushSlot(x, size.y - margin - labelH / 2);
+      }
+      return slots;
+    }
+
     function layoutCalloutLabels(map, labelLayer, items) {
       labelLayer.clearLayers();
       if (!items.length) return;
@@ -704,32 +858,98 @@
       const size = map.getSize();
       const labelW = 58;
       const labelH = 30;
-      const margin = 6;
-      const gap = 5;
-      // Reserve bottom-right for legend so callouts don't cover it
+      const margin = 8;
+      const gap = 6;
       const reserved = {
         x: size.x - 132,
         y: size.y - 150,
         w: 126,
         h: 144,
       };
-      const dirs = [];
-      for (let i = 0; i < 24; i++) {
-        const ang = (i / 24) * Math.PI * 2 - Math.PI / 2;
-        dirs.push([Math.cos(ang), Math.sin(ang)]);
-      }
-      const distances = [36, 48, 62, 78, 96, 116, 140, 168, 200, 240];
+
+      // Screen-space country geometry (highlighted only)
+      const countryRings = [];
+      const countryBoxes = [];
+      let sumX = 0;
+      let sumY = 0;
+      items.forEach(function (item) {
+        const rings = projectLayerRings(map, item.layer);
+        countryRings.push(rings);
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        rings.forEach(function (ring) {
+          ring.forEach(function (p) {
+            if (p.x < minX) minX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y > maxY) maxY = p.y;
+          });
+        });
+        countryBoxes.push({
+          x: minX,
+          y: minY,
+          w: Math.max(0, maxX - minX),
+          h: Math.max(0, maxY - minY),
+        });
+        const ap = map.latLngToContainerPoint(item.anchor);
+        sumX += ap.x;
+        sumY += ap.y;
+      });
+      const clusterCenterPt = {
+        x: sumX / items.length,
+        y: sumY / items.length,
+      };
 
       const ordered = items.slice().sort(function (a, b) {
         return b.row.count - a.row.count || String(a.row.name).localeCompare(String(b.row.name));
       });
 
       const placed = [reserved];
+      const freeSlots = buildEdgeSlots(size, labelW, labelH, margin, reserved);
+
+      function isFree(rect) {
+        for (let p = 0; p < placed.length; p++) {
+          if (rectsOverlap(rect, placed[p], gap)) return false;
+        }
+        if (rectOverlapsCountries(rect, countryRings, countryBoxes)) return false;
+        return true;
+      }
+
+      const dirs = [];
+      for (let i = 0; i < 32; i++) {
+        const ang = (i / 32) * Math.PI * 2 - Math.PI / 2;
+        dirs.push([Math.cos(ang), Math.sin(ang)]);
+      }
+      // Prefer farther offsets so labels leave country fills
+      const distances = [70, 90, 110, 130, 155, 180, 210, 245, 280, 320];
 
       ordered.forEach(function (item) {
         const anchorPt = map.latLngToContainerPoint(item.anchor);
         let chosen = null;
 
+        // 1) Prefer map-edge slots (almost never cover countries)
+        let bestSlot = null;
+        let bestDist = Infinity;
+        for (let s = 0; s < freeSlots.length; s++) {
+          const slot = freeSlots[s];
+          if (!isFree(slot.rect)) continue;
+          const d =
+            (slot.cx - anchorPt.x) * (slot.cx - anchorPt.x) +
+            (slot.cy - anchorPt.y) * (slot.cy - anchorPt.y);
+          if (d < bestDist) {
+            bestDist = d;
+            bestSlot = slot;
+          }
+        }
+        if (bestSlot) {
+          chosen = bestSlot;
+          // consume nearby identical slot reference
+          freeSlots.splice(freeSlots.indexOf(bestSlot), 1);
+        }
+
+        // 2) Radial search outside countries
         for (let di = 0; di < distances.length && !chosen; di++) {
           const dist = distances[di];
           for (let ri = 0; ri < dirs.length; ri++) {
@@ -749,62 +969,48 @@
             ) {
               continue;
             }
-            let hit = false;
-            for (let p = 0; p < placed.length; p++) {
-              if (rectsOverlap(rect, placed[p], gap)) {
-                hit = true;
-                break;
-              }
-            }
-            if (!hit) {
-              chosen = { cx: cx, cy: cy, rect: rect };
-              break;
+            if (!isFree(rect)) continue;
+            chosen = { cx: cx, cy: cy, rect: rect };
+            break;
+          }
+        }
+
+        // 3) Last resort: stack on far left/right outside reserved
+        if (!chosen) {
+          const sides = [margin + labelW / 2, size.x - margin - labelW / 2];
+          outer: for (let si = 0; si < sides.length; si++) {
+            for (let y = margin + labelH / 2; y < size.y - margin; y += labelH + gap) {
+              const rect = {
+                x: sides[si] - labelW / 2,
+                y: y - labelH / 2,
+                w: labelW,
+                h: labelH,
+              };
+              if (!isFree(rect)) continue;
+              chosen = { cx: sides[si], cy: y, rect: rect };
+              break outer;
             }
           }
         }
 
-        if (!chosen) {
-          let y = margin + placed.length * (labelH + gap);
-          if (y + labelH > size.y - margin) y = margin;
-          chosen = {
-            cx: size.x - margin - labelW / 2,
-            cy: y + labelH / 2,
-            rect: {
-              x: size.x - margin - labelW,
-              y: y,
-              w: labelW,
-              h: labelH,
-            },
-          };
-          let guard = 0;
-          while (guard++ < 40) {
-            let hit = false;
-            for (let p = 0; p < placed.length; p++) {
-              if (rectsOverlap(chosen.rect, placed[p], gap)) {
-                hit = true;
-                break;
-              }
-            }
-            if (!hit) break;
-            chosen.rect.y += labelH + gap;
-            chosen.cy = chosen.rect.y + labelH / 2;
-            if (chosen.rect.y + labelH > size.y - margin) {
-              chosen.rect.y = margin;
-              chosen.cx -= labelW + gap;
-              chosen.rect.x = chosen.cx - labelW / 2;
-              chosen.cy = chosen.rect.y + labelH / 2;
-            }
-          }
-        }
+        if (!chosen) return;
 
         placed.push(chosen.rect);
         const labelLatLng = map.containerPointToLatLng([chosen.cx, chosen.cy]);
+        const curve = curvedLeaderLatLngs(
+          map,
+          item.anchor,
+          labelLatLng,
+          clusterCenterPt
+        );
 
-        L.polyline([item.anchor, labelLatLng], {
+        L.polyline(curve, {
           color: "#475569",
-          weight: 1.1,
-          opacity: 0.9,
+          weight: 1.15,
+          opacity: 0.92,
           interactive: false,
+          lineJoin: "round",
+          lineCap: "round",
         }).addTo(labelLayer);
 
         L.circleMarker(item.anchor, {
@@ -887,7 +1093,7 @@
 
           const active = labelItems.map(function (it) { return it.layer; });
           if (active.length) {
-            map.fitBounds(L.featureGroup(active).getBounds().pad(0.12));
+            map.fitBounds(L.featureGroup(active).getBounds().pad(0.22));
           }
 
           function refreshLabels() {
