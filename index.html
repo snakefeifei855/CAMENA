@@ -377,8 +377,7 @@
     }
 
     function donutSVG(slices, totalValue, opts = {}) {
-      // Professional layout: donut + ranked legend (no leader lines).
-      // Leader callouts fail with 8+ thin slices; legend is the BI standard.
+      // Professional layout: donut + horizontal bar ranking (no leader lines).
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
       const W = large ? 920 : 640;
@@ -394,12 +393,18 @@
       const legendRight = W - (large ? 24 : 16);
       const n = slices.length;
       const availH = H - (large ? 48 : 36);
-      const rowH = Math.min(large ? 28 : 22, Math.max(large ? 17 : 15, availH / Math.max(n, 1)));
-      const nameSize = rowH < 18 ? (large ? 12 : 10) : (large ? 14 : 12);
-      const valSize = rowH < 18 ? (large ? 11 : 10) : (large ? 13 : 11);
-      const sw = large ? 10 : 8;
+      const rowH = Math.min(large ? 30 : 24, Math.max(large ? 18 : 16, availH / Math.max(n, 1)));
+      const nameSize = rowH < 19 ? (large ? 11 : 10) : (large ? 13 : 11);
+      const valSize = rowH < 19 ? (large ? 11 : 10) : (large ? 12 : 11);
+      const barH = Math.max(6, Math.min(large ? 14 : 11, rowH - 8));
       const legendBlock = n * rowH;
       const legendTop = Math.max(large ? 24 : 18, (H - legendBlock) / 2);
+      const nameColW = large ? 118 : 96;
+      const valColW = large ? 88 : 78;
+      const barX0 = legendX + nameColW;
+      const barX1 = legendRight - valColW;
+      const barMaxW = Math.max(40, barX1 - barX0);
+      const maxVal = Math.max.apply(null, slices.map(function (s) { return s.value; })) || 1;
 
       let angle = -Math.PI / 2;
       const arcs = [];
@@ -432,26 +437,22 @@
           const y = legendTop + i * rowH;
           const mid = y + rowH / 2;
           const name = displayName(s.name);
-          const val = String(s.value);
-          const pct = fmtPct(s.pct);
-          const valText = val + "  ·  " + pct;
+          const valText = s.value + "  ·  " + fmtPct(s.pct);
+          const bw = Math.max(2, (s.value / maxVal) * barMaxW);
+          const barY = mid - barH / 2;
           return [
-            '<rect x="' + legendX + '" y="' + (mid - sw / 2).toFixed(1) + '" width="' + sw +
-              '" height="' + sw + '" rx="2" fill="' + colorFor(i) + '" />',
-            '<text x="' + (legendX + sw + 10) + '" y="' + mid.toFixed(1) +
+            '<text x="' + legendX + '" y="' + mid.toFixed(1) +
               '" dominant-baseline="middle" fill="#1f2a33" font-size="' + nameSize +
               '" font-weight="500" font-family="IBM Plex Sans, sans-serif">' +
               name + "</text>",
+            '<rect x="' + barX0 + '" y="' + barY.toFixed(1) + '" width="' + barMaxW +
+              '" height="' + barH + '" rx="3" fill="#eef2f5" />',
+            '<rect x="' + barX0 + '" y="' + barY.toFixed(1) + '" width="' + bw.toFixed(1) +
+              '" height="' + barH + '" rx="3" fill="' + colorFor(i) + '" />',
             '<text x="' + legendRight + '" y="' + mid.toFixed(1) +
               '" text-anchor="end" dominant-baseline="middle" fill="#4b5563" font-size="' +
               valSize + '" font-family="IBM Plex Sans, sans-serif">' +
               valText + "</text>",
-            // soft row separator for readability when many items
-            i < n - 1
-              ? '<line x1="' + legendX + '" y1="' + (y + rowH).toFixed(1) + '" x2="' +
-                legendRight + '" y2="' + (y + rowH).toFixed(1) +
-                '" stroke="#eef2f5" stroke-width="1" />'
-              : "",
           ].join("");
         })
         .join("");
