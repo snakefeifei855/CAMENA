@@ -377,33 +377,38 @@
     }
 
     function donutSVG(slices, totalValue, opts = {}) {
-      // Professional layout: donut + horizontal bar ranking (no leader lines).
+      // Donut + horizontal bar ranking, sorted most → least top to bottom.
+      slices = slices
+        .slice()
+        .sort(function (a, b) {
+          return b.value - a.value || String(a.name).localeCompare(String(b.name));
+        });
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
-      const W = large ? 920 : 640;
-      const H = large ? 560 : 380;
+      const W = large ? 960 : 680;
+      const H = large ? 580 : 400;
 
-      const cx = large ? 180 : 125;
+      const cx = large ? 170 : 118;
       const cy = H / 2;
-      const r = large ? 108 : 78;
+      const r = large ? 108 : 76;
       const stroke = large ? 38 : 28;
       const centerSize = large ? 44 : 34;
 
-      const legendX = large ? 390 : 270;
-      const legendRight = W - (large ? 24 : 16);
+      const legendX = large ? 370 : 255;
+      const legendRight = W - (large ? 20 : 14);
       const n = slices.length;
-      const availH = H - (large ? 48 : 36);
-      const rowH = Math.min(large ? 30 : 24, Math.max(large ? 18 : 16, availH / Math.max(n, 1)));
-      const nameSize = rowH < 19 ? (large ? 11 : 10) : (large ? 13 : 11);
-      const valSize = rowH < 19 ? (large ? 11 : 10) : (large ? 12 : 11);
-      const barH = Math.max(6, Math.min(large ? 14 : 11, rowH - 8));
+      const availH = H - (large ? 40 : 28);
+      const rowH = Math.min(large ? 32 : 26, Math.max(large ? 20 : 17, availH / Math.max(n, 1)));
+      const nameSize = rowH < 20 ? (large ? 12 : 10) : (large ? 13 : 12);
+      const valSize = rowH < 20 ? (large ? 11 : 10) : (large ? 12 : 11);
+      const barH = Math.max(8, Math.min(large ? 16 : 13, rowH - 6));
       const legendBlock = n * rowH;
-      const legendTop = Math.max(large ? 24 : 18, (H - legendBlock) / 2);
-      const nameColW = large ? 118 : 96;
-      const valColW = large ? 88 : 78;
+      const legendTop = Math.max(large ? 20 : 14, (H - legendBlock) / 2);
+      const nameColW = large ? 112 : 92;
+      const valColW = large ? 92 : 80;
       const barX0 = legendX + nameColW;
       const barX1 = legendRight - valColW;
-      const barMaxW = Math.max(40, barX1 - barX0);
+      const barMaxW = Math.max(60, barX1 - barX0);
       const maxVal = Math.max.apply(null, slices.map(function (s) { return s.value; })) || 1;
 
       let angle = -Math.PI / 2;
