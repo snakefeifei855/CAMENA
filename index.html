@@ -355,10 +355,10 @@
     }
 
     function donutSVG(slices, totalValue, opts = {}) {
-      // Feishu-style: left/right columns only, even vertical stack, elbow + underline.
+      // Left/right by slice angle; label X follows angle (staggered); lines stay outside ring.
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
-      const W = large ? 920 : 640;
+      const W = large ? 960 : 680;
       const H = large ? 560 : 400;
       const cx = W / 2;
       const cy = H / 2;
@@ -417,6 +417,9 @@
         angle += (s.value / total) * Math.PI * 2;
       });
 
+      const clearR = elbowR + (large ? 10 : 8);
+      const labelR = clearR + (large ? 22 : 16);
+
       function layoutSide(items, isRight) {
         items.sort(function (a, b) {
           return a.ey - b.ey;
@@ -426,56 +429,92 @@
 
         const top = pad + fontSize;
         const bottom = H - pad;
-        const avail = bottom - top;
-        var gap = n === 1 ? 0 : Math.max(minGap, avail / (n - 1));
-        if ((n - 1) * gap > avail) gap = avail / Math.max(n - 1, 1);
-        const block = (n - 1) * gap;
-        var y0 = (H - block) / 2;
-        if (y0 < top) y0 = top;
-        if (y0 + block > bottom) y0 = bottom - block;
 
-        // Feishu: right column left-aligned; left column right-aligned
-        const xCol = isRight
-          ? cx + elbowR + (large ? 44 : 32)
-          : cx - elbowR - (large ? 44 : 32);
-
-        items.forEach(function (it, idx) {
-          it.y = n === 1 ? Math.max(top, Math.min(bottom, it.ey)) : y0 + idx * gap;
-          it.x = xCol;
+        items.forEach(function (it) {
+          const ox = cx + clearR * Math.cos(it.mid);
+          const oy = cy + clearR * Math.sin(it.mid);
+          // X follows slice angle → labels stagger naturally (not one rigid column)
+          var joinX = cx + labelR * Math.cos(it.mid);
+          if (isRight) {
+            joinX = Math.max(ox + 8, joinX, cx + clearR + 14);
+            joinX = Math.min(joinX, W - pad - it.textW);
+          } else {
+            joinX = Math.min(ox - 8, joinX, cx - clearR - 14);
+            joinX = Math.max(joinX, pad + it.textW);
+          }
+          it.ox = ox;
+          it.oy = oy;
+          it.x = joinX;
+          it.y = Math.max(top, Math.min(bottom, it.ey));
           it.anchor = isRight ? "start" : "end";
           it.isRight = isRight;
         });
+
+        // Only separate overlapping Y; keep each label's own X
+        for (var pass = 0; pass < 6; pass++) {
+          var i;
+          for (i = 1; i < n; i++) {
+            if (items[i].y < items[i - 1].y + minGap) {
+              items[i].y = items[i - 1].y + minGap;
+            }
+          }
+          for (i = n - 2; i >= 0; i--) {
+            if (items[i].y > items[i + 1].y - minGap) {
+              items[i].y = items[i + 1].y - minGap;
+            }
+          }
+        }
+
+        if (n > 1) {
+          const need = (n - 1) * minGap;
+          if (items[0].y < top || items[n - 1].y > bottom || need > bottom - top) {
+            const gap = Math.min(minGap, (bottom - top) / (n - 1));
+            const block = gap * (n - 1);
+            var y0 = Math.max(top, Math.min((H - block) / 2, bottom - block));
+            for (var k = 0; k < n; k++) items[k].y = y0 + k * gap;
+          } else {
+            for (var j = 0; j < n; j++) {
+              items[j].y = Math.max(top, Math.min(bottom, items[j].y));
+            }
+          }
+        }
+
+        // Extra left/right stagger when neighbors are tight in Y
+        const push = large ? 18 : 14;
+        for (var t = 0; t < n; t++) {
+          if (t > 0 && items[t].y - items[t - 1].y < minGap + 2) {
+            if (isRight) {
+              if (t % 2 === 1) {
+                items[t].x = Math.min(W - pad - items[t].textW, items[t].x + push);
+              } else {
+                items[t - 1].x = Math.min(W - pad - items[t - 1].textW, items[t - 1].x + push);
+              }
+            } else {
+              if (t % 2 === 1) {
+                items[t].x = Math.max(pad + items[t].textW, items[t].x - push);
+              } else {
+                items[t - 1].x = Math.max(pad + items[t - 1].textW, items[t - 1].x - push);
+              }
+            }
+          }
+        }
       }
 
       layoutSide(left, false);
       layoutSide(right, true);
 
-      const clearR = elbowR + (large ? 10 : 8); // keep all polyline verts outside this radius
-
       function drawLabels(items) {
         return items
           .map(function (it) {
             const lineY = it.y + 3;
-            var xJoin;
-            var xEnd;
-            if (it.isRight) {
-              xJoin = it.x;
-              xEnd = it.x + it.textW;
-            } else {
-              xJoin = it.x;
-              xEnd = it.x - it.textW;
-            }
+            const xJoin = it.x;
+            const xEnd = it.isRight ? it.x + it.textW : it.x - it.textW;
 
-            // 1) radial step clear of the ring stroke
-            const ox = cx + clearR * Math.cos(it.mid);
-            const oy = cy + clearR * Math.sin(it.mid);
-            // 2) horizontal to column (same Y as clear point) — stays outside ring
-            // 3) vertical to label row
-            // 4) underline
+            // Anchor → radial clear (OK near ring) → out to this label's X → row → underline
             const path =
               "M " + it.ex.toFixed(1) + " " + it.ey.toFixed(1) +
-              " L " + ox.toFixed(1) + " " + oy.toFixed(1) +
-              " L " + xJoin.toFixed(1) + " " + oy.toFixed(1) +
+              " L " + it.ox.toFixed(1) + " " + it.oy.toFixed(1) +
+              " L " + xJoin.toFixed(1) + " " + it.oy.toFixed(1) +
               " L " + xJoin.toFixed(1) + " " + lineY.toFixed(1) +
               " L " + xEnd.toFixed(1) + " " + lineY.toFixed(1);
 
