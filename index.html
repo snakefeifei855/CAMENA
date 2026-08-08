@@ -350,8 +350,7 @@
     function colorFor(i) { return COLORS[i % COLORS.length]; }
 
     function fmtPct(p) {
-      const n = Number(p);
-      return (Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n) : n.toFixed(2)) + "%";
+      return Number(p).toFixed(1) + "%";
     }
 
     function displayName(raw) {
