@@ -357,15 +357,19 @@
     function donutSVG(slices, totalValue, opts = {}) {
       const total = slices.reduce((s, x) => s + x.value, 0) || 1;
       const large = !!opts.large;
-      const W = large ? 980 : 700;
-      const H = large ? 600 : 400;
+      const W = large ? 960 : 680;
+      const H = large ? 620 : 420;
       const cx = W / 2;
       const cy = H / 2;
-      const r = large ? 125 : 80;
-      const stroke = large ? 42 : 30;
+      const r = large ? 120 : 78;
+      const stroke = large ? 40 : 28;
       const fontSize = large ? 14 : 12;
       const centerSize = large ? 48 : 32;
       const elbowR = r + stroke / 2;
+      const charW = large ? 7.4 : 6.5;
+      const minGap = large ? 20 : 16;
+      const pad = 12;
+      const outPad = large ? 28 : 20;
 
       let angle = -Math.PI / 2;
       const arcs = [];
@@ -378,7 +382,7 @@
         const mid = angle + sweep / 2;
 
         if (slices.length === 1) {
-          arcs.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colorFor(i)}" stroke-width="${stroke}" />`);
+          arcs.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + colorFor(i) + '" stroke-width="' + stroke + '" />');
         } else {
           const x1 = cx + r * Math.cos(angle);
           const y1 = cy + r * Math.sin(angle);
@@ -386,104 +390,143 @@
           const y2 = cy + r * Math.sin(a2);
           const largeArc = sweep > Math.PI ? 1 : 0;
           arcs.push(
-            `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}" fill="none" stroke="${colorFor(i)}" stroke-width="${stroke}" />`
+            '<path d="M ' + x1 + ' ' + y1 + ' A ' + r + ' ' + r + ' 0 ' + largeArc + ' 1 ' + x2 + ' ' + y2 + '" fill="none" stroke="' + colorFor(i) + '" stroke-width="' + stroke + '" />'
           );
         }
 
+        const onRight = Math.cos(mid) >= 0;
+        const rest = ': ' + s.value + ' (' + fmtPct(s.pct) + ')';
+        const label = s.name + rest;
+        const textW = Math.max(72, label.length * charW);
+        // Prefer angular position (Feishu), not full-height equal spacing
+        const radial = elbowR + outPad;
+        const ly = cy + radial * Math.sin(mid);
+        const lxEdge = onRight
+          ? cx + elbowR + (large ? 14 : 10)
+          : cx - elbowR - (large ? 14 : 10);
+
         const item = {
-          i,
-          mid,
+          i: i,
+          mid: mid,
+          onRight: onRight,
           name: s.name,
-          rest: `: ${s.value} (${fmtPct(s.pct)})`,
-          text: `${s.name}: ${s.value} (${fmtPct(s.pct)})`,
+          rest: rest,
+          textW: textW,
           ex: cx + elbowR * Math.cos(mid),
           ey: cy + elbowR * Math.sin(mid),
+          ly: ly,
+          lxEdge: lxEdge,
         };
-        (Math.cos(mid) >= 0 ? right : left).push(item);
+        (onRight ? right : left).push(item);
         angle = a2;
       });
 
-      /**
-       * Feishu-style callouts (strict):
-       * - labels in a vertical column on that side
-       * - path: ring anchor → horizontal to gutter → diagonal to label row → underline under country name
-       * - same top→bottom order for anchors & labels => diagonals never cross
-       */
-      function layoutSide(items, side) {
-        items.sort((a, b) => a.ey - b.ey || a.mid - b.mid);
-        const n = items.length;
-        if (!n) return "";
-
-        const top = large ? 36 : 28;
-        const bottom = H - (large ? 36 : 28);
-        const minGap = large ? 20 : 16;
-        const span = Math.max(bottom - top, minGap);
-        const gap = n === 1 ? 0 : Math.max(minGap, span / (n - 1));
-        const block = gap * Math.max(n - 1, 0);
-        let y0 = (H - block) / 2;
-        y0 = Math.max(top, Math.min(y0, bottom - block));
-
-        const isRight = side === "right";
-        const xLabel = isRight ? W - (large ? 18 : 14) : (large ? 18 : 14);
-        // Gutter just outside the ring on this side
-        const xGutter = isRight
-          ? cx + elbowR + (large ? 18 : 12)
-          : cx - elbowR - (large ? 18 : 12);
-        const anchor = isRight ? "end" : "start";
-        const nameFactor = large ? 8.4 : 7.3;
-
-        return items.map((it, idx) => {
-          const nameY = y0 + idx * gap;
-          const lineY = nameY + 3;
-          const nameWidth = Math.max(40, it.name.length * nameFactor);
-
-          let nameStart;
-          let nameEnd;
-          if (isRight) {
-            // whole label is right-aligned at xLabel; country name is the left part of the string visually...
-            // Approximate: full text ends at xLabel; name is at the beginning of the string (left side of glyph run)
-            const fullW = Math.max(80, it.text.length * (large ? 7.6 : 6.6));
-            const nameLeft = xLabel - fullW;
-            nameStart = nameLeft;
-            nameEnd = nameLeft + nameWidth;
-          } else {
-            nameStart = xLabel;
-            nameEnd = xLabel + nameWidth;
+      function resolveSide(items) {
+        // Keep angular order so leader lines never cross
+        items.sort(function (a, b) { return a.mid - b.mid; });
+        for (var pass = 0; pass < 4; pass++) {
+          var i;
+          for (i = 1; i < items.length; i++) {
+            if (items[i].ly < items[i - 1].ly + minGap) {
+              items[i].ly = items[i - 1].ly + minGap;
+            }
           }
-
-          // Strict Feishu polyline:
-          // 1) horizontal out from ring to gutter (same Y as anchor)
-          // 2) diagonal from gutter@anchorY to near label@labelY
-          // 3) horizontal underline under country name
-          const approachX = isRight ? nameStart - 2 : nameStart - 2;
-          const path = [
-            `M ${it.ex.toFixed(1)} ${it.ey.toFixed(1)}`,
-            `L ${xGutter.toFixed(1)} ${it.ey.toFixed(1)}`,
-            `L ${approachX.toFixed(1)} ${lineY.toFixed(1)}`,
-            `L ${nameEnd.toFixed(1)} ${lineY.toFixed(1)}`,
-          ].join(" ");
-
-          return `
-            <path d="${path}" fill="none" stroke="#94a3b8" stroke-width="1.1" />
-            <circle cx="${it.ex.toFixed(1)}" cy="${it.ey.toFixed(1)}" r="${large ? 3 : 2.4}" fill="${colorFor(it.i)}" stroke="#ffffff" stroke-width="1.5" />
-            <text x="${xLabel}" y="${nameY.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="alphabetic"
-              fill="#1f2a33" font-size="${fontSize}" font-family="IBM Plex Sans, sans-serif">
-              <tspan font-weight="600">${it.name}</tspan><tspan fill="#4b5563">${it.rest}</tspan>
-            </text>
-          `;
-        }).join("");
+          for (i = items.length - 2; i >= 0; i--) {
+            if (items[i].ly > items[i + 1].ly - minGap) {
+              items[i].ly = items[i + 1].ly - minGap;
+            }
+          }
+        }
+        for (var j = 0; j < items.length; j++) {
+          items[j].ly = Math.max(pad + fontSize, Math.min(H - pad - 4, items[j].ly));
+        }
+        // If still cramped after clamp, re-spread evenly in available band
+        if (items.length > 1) {
+          var lo = pad + fontSize;
+          var hi = H - pad - 4;
+          var need = (items.length - 1) * minGap;
+          if (need > hi - lo) {
+            var gap = (hi - lo) / (items.length - 1);
+            for (var k = 0; k < items.length; k++) {
+              items[k].ly = lo + k * gap;
+            }
+          } else {
+            // Pull block toward original angular center if overflowed
+            var overflowTop = items[0].ly < lo;
+            var overflowBot = items[items.length - 1].ly > hi;
+            if (overflowTop || overflowBot) {
+              var block = (items.length - 1) * minGap;
+              var midY = (items[0].ly + items[items.length - 1].ly) / 2;
+              var start = Math.max(lo, Math.min(midY - block / 2, hi - block));
+              for (var m = 0; m < items.length; m++) {
+                items[m].ly = start + m * minGap;
+              }
+            }
+          }
+        }
       }
 
-      const labelNodes = layoutSide(left, "left") + layoutSide(right, "right");
+      resolveSide(left);
+      resolveSide(right);
 
-      const center = `
-        <text x="${cx}" y="${cy - 8}" text-anchor="middle" fill="#1f2a33" font-size="${centerSize}" font-weight="700"
-          font-family="IBM Plex Sans, sans-serif">${totalValue}</text>
-        <text x="${cx}" y="${cy + (large ? 22 : 16)}" text-anchor="middle" fill="#6b7785" font-size="${large ? 15 : 12}"
-          font-family="IBM Plex Sans, sans-serif">Total</text>
-      `;
+      function drawLabels(items) {
+        return items.map(function (it) {
+          var lineY = it.ly + 3;
+          var xNear;
+          var xFar;
+          var textX;
+          var anchor;
 
-      return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${arcs.join("")}${labelNodes}${center}</svg>`;
+          if (it.onRight) {
+            xNear = it.lxEdge;
+            xFar = it.lxEdge + it.textW;
+            textX = xNear;
+            anchor = 'start';
+            if (xFar > W - pad) {
+              var shiftR = xFar - (W - pad);
+              xNear -= shiftR;
+              xFar -= shiftR;
+              textX -= shiftR;
+            }
+          } else {
+            xNear = it.lxEdge;
+            xFar = it.lxEdge - it.textW;
+            textX = xNear;
+            anchor = 'end';
+            if (xFar < pad) {
+              var shiftL = pad - xFar;
+              xNear += shiftL;
+              xFar += shiftL;
+              textX += shiftL;
+            }
+          }
+
+          // Feishu: ring node -> short diagonal -> horizontal underline under full label
+          var path = 'M ' + it.ex.toFixed(1) + ' ' + it.ey.toFixed(1) +
+            ' L ' + xNear.toFixed(1) + ' ' + lineY.toFixed(1) +
+            ' L ' + xFar.toFixed(1) + ' ' + lineY.toFixed(1);
+
+          return [
+            '<path d="' + path + '" fill="none" stroke="#94a3b8" stroke-width="1.1" />',
+            '<circle cx="' + it.ex.toFixed(1) + '" cy="' + it.ey.toFixed(1) + '" r="' + (large ? 3 : 2.4) + '" fill="#ffffff" stroke="' + colorFor(it.i) + '" stroke-width="1.6" />',
+            '<text x="' + textX.toFixed(1) + '" y="' + it.ly.toFixed(1) + '" text-anchor="' + anchor + '" dominant-baseline="alphabetic"',
+            ' fill="#1f2a33" font-size="' + fontSize + '" font-family="IBM Plex Sans, sans-serif">',
+            '<tspan font-weight="600">' + it.name + '</tspan><tspan fill="#4b5563">' + it.rest + '</tspan>',
+            '</text>',
+          ].join('');
+        }).join('');
+      }
+
+      var labelNodes = drawLabels(left) + drawLabels(right);
+
+      var center = [
+        '<text x="' + cx + '" y="' + (cy - 8) + '" text-anchor="middle" fill="#1f2a33" font-size="' + centerSize + '" font-weight="700"',
+        ' font-family="IBM Plex Sans, sans-serif">' + totalValue + '</text>',
+        '<text x="' + cx + '" y="' + (cy + (large ? 22 : 16)) + '" text-anchor="middle" fill="#6b7785" font-size="' + (large ? 15 : 12) + '"',
+        ' font-family="IBM Plex Sans, sans-serif">Total</text>',
+      ].join('');
+
+      return '<svg viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">' + arcs.join('') + labelNodes + center + '</svg>';
     }
 
     const EXPAND_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
