@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- build:cap-gw-1dp -->
+  <!-- build:titles-h1-2026 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CAMENA · Jan–Jul 2026 Dashboard</title>
+  <title>CAMENA · 2026年上半年仪表盘</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -315,15 +315,15 @@
     <div class="topbar">
       <div>
         <h1>CAMENA Smart Project Planning</h1>
-        <p>Jan 2026 – Jul 2026 · Asia/Shanghai · Last Process Update based</p>
+        <p>2026年上半年 · Asia/Shanghai · 基于 Last Process Update</p>
       </div>
     </div>
 
-    <h2 class="section-label">By project count</h2>
+    <h2 class="section-label">按项目数量</h2>
     <section class="grid-kpi" id="kpi-row"></section>
     <section class="grid-charts" id="chart-row"></section>
 
-    <h2 class="section-label">By installed capacity (GW)</h2>
+    <h2 class="section-label">按装机容量（GW）</h2>
     <section class="grid-kpi" id="kpi-row-cap"></section>
     <section class="grid-charts" id="chart-row-cap"></section>
 
@@ -356,19 +356,19 @@
     const DATA = {"analysis":{"total":191,"slices":[{"name":"TURKIYE","value":102,"pct":53.4},{"name":"PAKISTAN","value":25,"pct":13.09},{"name":"UZBEKISTAN","value":11,"pct":5.76},{"name":"GEORGIA","value":9,"pct":4.71},{"name":"MOROCCO","value":7,"pct":3.66},{"name":"SAUDI","value":7,"pct":3.66},{"name":"UKRAINE","value":7,"pct":3.66},{"name":"EGYPT","value":6,"pct":3.14},{"name":"KAZAKHISTAN","value":6,"pct":3.14},{"name":"SRI LANKA","value":3,"pct":1.57},{"name":"Azerbajian","value":2,"pct":1.05},{"name":"Kyrgyzstan","value":2,"pct":1.05},{"name":"Mongolia","value":1,"pct":0.52},{"name":"OMAN","value":1,"pct":0.52},{"name":"TAJIKISTAN","value":1,"pct":0.52},{"name":"TUNISIA","value":1,"pct":0.52}]},"new2026":{"total":95,"slices":[{"name":"TURKIYE","value":57,"pct":60.0},{"name":"PAKISTAN","value":14,"pct":14.74},{"name":"UKRAINE","value":6,"pct":6.32},{"name":"EGYPT","value":4,"pct":4.21},{"name":"UZBEKISTAN","value":4,"pct":4.21},{"name":"Kyrgyzstan","value":2,"pct":2.11},{"name":"MOROCCO","value":2,"pct":2.11},{"name":"SAUDI","value":2,"pct":2.11},{"name":"Azerbajian","value":1,"pct":1.05},{"name":"GEORGIA","value":1,"pct":1.05},{"name":"KAZAKHISTAN","value":1,"pct":1.05},{"name":"TAJIKISTAN","value":1,"pct":1.05}]},"oldRevision":{"total":96,"slices":[{"name":"TURKIYE","value":45,"pct":46.88},{"name":"PAKISTAN","value":11,"pct":11.46},{"name":"GEORGIA","value":8,"pct":8.33},{"name":"UZBEKISTAN","value":7,"pct":7.29},{"name":"KAZAKHISTAN","value":5,"pct":5.21},{"name":"MOROCCO","value":5,"pct":5.21},{"name":"SAUDI","value":5,"pct":5.21},{"name":"SRI LANKA","value":3,"pct":3.12},{"name":"EGYPT","value":2,"pct":2.08},{"name":"Azerbajian","value":1,"pct":1.04},{"name":"Mongolia","value":1,"pct":1.04},{"name":"OMAN","value":1,"pct":1.04},{"name":"TUNISIA","value":1,"pct":1.04},{"name":"UKRAINE","value":1,"pct":1.04}]},"contracts":{"total":21,"slices":[{"name":"PAKISTAN","value":15,"pct":71.43},{"name":"TURKIYE","value":5,"pct":23.81},{"name":"GEORGIA","value":1,"pct":4.76}]},"award":{"total":12,"slices":[{"name":"TURKIYE","value":7,"pct":58.33},{"name":"PAKISTAN","value":2,"pct":16.67},{"name":"GEORGIA","value":1,"pct":8.33},{"name":"KAZAKHISTAN","value":1,"pct":8.33},{"name":"UZBEKISTAN","value":1,"pct":8.33}]},"analysisCap":{"total":37.1,"slices":[{"name":"SAUDI","value":8.5,"pct":22.79},{"name":"UZBEKISTAN","value":7.4,"pct":19.84},{"name":"TURKIYE","value":6.0,"pct":16.09},{"name":"EGYPT","value":5.2,"pct":13.94},{"name":"MOROCCO","value":4.5,"pct":12.06},{"name":"KAZAKHISTAN","value":2.6,"pct":6.97},{"name":"GEORGIA","value":0.7,"pct":1.88},{"name":"UKRAINE","value":0.4,"pct":1.07},{"name":"Kyrgyzstan","value":0.4,"pct":1.07},{"name":"OMAN","value":0.4,"pct":1.07},{"name":"PAKISTAN","value":0.4,"pct":1.07},{"name":"Azerbajian","value":0.2,"pct":0.54},{"name":"TAJIKISTAN","value":0.2,"pct":0.54},{"name":"SRI LANKA","value":0.2,"pct":0.54},{"name":"Mongolia","value":0.1,"pct":0.27},{"name":"TUNISIA","value":0.1,"pct":0.27}]},"new2026Cap":{"total":14.6,"slices":[{"name":"TURKIYE","value":3.8,"pct":25.85},{"name":"EGYPT","value":3.4,"pct":23.13},{"name":"UZBEKISTAN","value":2.8,"pct":19.05},{"name":"SAUDI","value":2.2,"pct":14.97},{"name":"MOROCCO","value":1.1,"pct":7.48},{"name":"UKRAINE","value":0.4,"pct":2.72},{"name":"Kyrgyzstan","value":0.4,"pct":2.72},{"name":"TAJIKISTAN","value":0.2,"pct":1.36},{"name":"KAZAKHISTAN","value":0.2,"pct":1.36},{"name":"PAKISTAN","value":0.1,"pct":0.68},{"name":"GEORGIA","value":0.1,"pct":0.68}]},"oldRevisionCap":{"total":22.5,"slices":[{"name":"SAUDI","value":6.3,"pct":28.0},{"name":"UZBEKISTAN","value":4.6,"pct":20.44},{"name":"MOROCCO","value":3.4,"pct":15.11},{"name":"KAZAKHISTAN","value":2.4,"pct":10.67},{"name":"TURKIYE","value":2.1,"pct":9.33},{"name":"EGYPT","value":1.8,"pct":8.0},{"name":"GEORGIA","value":0.6,"pct":2.67},{"name":"OMAN","value":0.4,"pct":1.78},{"name":"PAKISTAN","value":0.3,"pct":1.33},{"name":"Azerbajian","value":0.2,"pct":0.89},{"name":"SRI LANKA","value":0.2,"pct":0.89},{"name":"Mongolia","value":0.1,"pct":0.44},{"name":"TUNISIA","value":0.1,"pct":0.44}]},"contractsCap":{"total":0.4,"slices":[{"name":"TURKIYE","value":0.2,"pct":50.0},{"name":"PAKISTAN","value":0.1,"pct":25.0},{"name":"GEORGIA","value":0.1,"pct":25.0}]},"awardCap":{"total":2.1,"slices":[{"name":"UZBEKISTAN","value":1.5,"pct":71.43},{"name":"TURKIYE","value":0.3,"pct":14.29},{"name":"KAZAKHISTAN","value":0.2,"pct":9.52},{"name":"GEORGIA","value":0.1,"pct":4.76}]}};
 
     const METRICS_COUNT = [
-      { key: "analysis", title: "Number of Analysis in total", unit: "count" },
-      { key: "new2026", title: "Number of Projects newly received in 2026", unit: "count" },
-      { key: "oldRevision", title: "Number of old Projects with revision requirement in 2026", unit: "count" },
-      { key: "contracts", title: "Number of contracts signed", unit: "count" },
-      { key: "award", title: "Number of projects with winning bid notifications received", unit: "count" },
+      { key: "analysis", title: "2026年上半年分析项目数量", unit: "count" },
+      { key: "new2026", title: "2026年上半年新接收项目数量", unit: "count" },
+      { key: "oldRevision", title: "2026年上半年老项目复审数量", unit: "count" },
+      { key: "contracts", title: "2026年上半年签约合同数量", unit: "count" },
+      { key: "award", title: "2026年上半年中标通知项目数量", unit: "count" },
     ];
 
     const METRICS_CAPACITY = [
-      { key: "analysisCap", title: "Installed capacity of Analysis in total", unit: "GW" },
-      { key: "new2026Cap", title: "Installed capacity of Projects newly received in 2026", unit: "GW" },
-      { key: "oldRevisionCap", title: "Installed capacity of old Projects with revision in 2026", unit: "GW" },
-      { key: "contractsCap", title: "Installed capacity of contracts signed", unit: "GW" },
-      { key: "awardCap", title: "Installed capacity of projects with winning bid notifications", unit: "GW" },
+      { key: "analysisCap", title: "2026年上半年分析项目装机容量", unit: "GW" },
+      { key: "new2026Cap", title: "2026年上半年新接收项目装机容量", unit: "GW" },
+      { key: "oldRevisionCap", title: "2026年上半年老项目复审装机容量", unit: "GW" },
+      { key: "contractsCap", title: "2026年上半年签约合同装机容量", unit: "GW" },
+      { key: "awardCap", title: "2026年上半年中标通知项目装机容量", unit: "GW" },
     ];
 
     const COLORS = [
